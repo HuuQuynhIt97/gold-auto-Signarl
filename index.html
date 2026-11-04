@@ -54,6 +54,30 @@ header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:s
 .coin{animation:pop 2s ease-out infinite;opacity:0}
 @keyframes pop{0%,55%{opacity:0;transform:translate(0,0)}62%{opacity:1}85%{opacity:1;transform:translate(-6px,-20px)}100%{opacity:0;transform:translate(-8px,-14px)}}
 @media (prefers-reduced-motion:reduce){.pick,.spark,.pile,.coin,.cta .cap b::after{animation:none}.spark,.coin{opacity:0}}
+.bellw{position:relative}
+.bell{position:relative;width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;display:grid;place-items:center}
+.bell:hover{background:#14223a}
+.bell svg{width:20px;height:20px}
+.bell.ring svg{animation:ring .9s ease-in-out}
+@keyframes ring{0%,100%{transform:rotate(0)}15%{transform:rotate(18deg)}30%{transform:rotate(-16deg)}45%{transform:rotate(12deg)}60%{transform:rotate(-8deg)}75%{transform:rotate(4deg)}}
+.bell .n{position:absolute;top:-4px;right:-4px;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:#ff3b4f;color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center;border:2px solid var(--bg)}
+.np{position:absolute;right:0;top:48px;width:min(360px,calc(100vw - 32px));max-height:70vh;overflow:auto;z-index:50;background:var(--panel2);border:1px solid #26385a;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.55)}
+@media (max-width:560px){.np{position:fixed;left:16px;right:16px;top:72px;width:auto;max-height:75vh}}
+.nph{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);font-weight:800;position:sticky;top:0;background:var(--panel2)}
+.nph button{background:none;border:0;color:var(--run);font-size:12px;cursor:pointer;font-weight:700}
+.ni{display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid #152238;align-items:flex-start}
+.ni.unread{background:rgba(56,189,248,.07)}
+.ni.unread .nt::after{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--run);margin-left:6px;vertical-align:middle}
+.ni .ic{width:34px;height:34px;flex:0 0 34px;border-radius:50%;display:grid;place-items:center;font-size:16px;background:#1b2537}
+.ic.win{background:rgba(18,209,142,.18)}.ic.loss{background:rgba(255,93,115,.18)}.ic.run{background:rgba(56,189,248,.18)}.ic.wait{background:rgba(240,180,76,.18)}
+.nt{font-weight:800;font-size:13px}.nx{font-size:12px;color:#c4d2e4}.nw{font-size:11px;color:var(--muted);margin-top:2px}
+.nempty{padding:22px;text-align:center;color:var(--muted);font-size:13px}
+.toasts{position:fixed;right:16px;bottom:16px;z-index:60;display:flex;flex-direction:column;gap:8px;width:min(340px,calc(100vw - 32px))}
+.toast{display:flex;gap:10px;align-items:flex-start;background:var(--panel2);border:1px solid #26385a;border-radius:14px;padding:11px 12px;box-shadow:0 14px 40px rgba(0,0,0,.5);cursor:pointer;animation:tin .35s ease-out}
+.toast.out{animation:tout .3s ease-in forwards}
+@keyframes tin{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes tout{to{opacity:0;transform:translateX(30px)}}
+@media (prefers-reduced-motion:reduce){.bell.ring svg,.toast,.toast.out{animation:none}}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px}
 .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:14px}
 .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
@@ -121,6 +145,13 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
         </svg>
         <span class="cap"><b>Đang đào vàng</b><small id="ctaSub">bot chạy 24/7</small></span>
       </a>
+      <div class="bellw">
+        <button id="bell" class="bell" type="button" aria-label="Thông báo" title="Thông báo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          <span id="bellN" class="n" hidden></span>
+        </button>
+        <div id="np" class="np" hidden><div class="nph">Thông báo<button id="npAll" type="button">Đánh dấu đã đọc</button></div><div id="npList"></div></div>
+      </div>
       <div class="live"><span class="dot" id="dot"></span><span id="liveText">Đang kết nối…</span></div>
     </div>
   </header>
@@ -138,6 +169,7 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
   </div>
   <section class="list" id="list"></section>
 
+  <div id="toasts" class="toasts" aria-live="polite"></div>
   <footer>Kết quả quá khứ không bảo đảm lợi nhuận sau này. Giao dịch đòn bẩy có rủi ro mất vốn.</footer>
 </div>
 
@@ -166,7 +198,7 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
   function render() {
     if (!state) return;
     var s = state.stats || {};
-    if (state.title) { document.getElementById("title").textContent = state.title; document.title = state.title; }
+    if (state.title) { document.getElementById("title").textContent = state.title; baseTitle = state.title; }
     var cta = document.getElementById("cta");
     if (state.link && /^https?:\/\//i.test(state.link)) { cta.href = state.link; cta.title = "Vào nhóm nhận tín hiệu"; document.getElementById("ctaSub").textContent = "bấm vào nhóm nhận kèo"; }
     else { cta.removeAttribute("href"); cta.title = "Bot đang đào vàng"; document.getElementById("ctaSub").textContent = "bot chạy 24/7"; }
@@ -176,6 +208,7 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
       + stat(s.since ? "Tín hiệu từ " + new Date(s.since + 7*3600e3).toISOString().slice(5,10).split("-").reverse().join("/") : "Tín hiệu " + (s.days || 60) + " ngày", s.signals || 0) + stat("Đang chạy", s.running || 0, "run") + stat("Lệnh chờ", s.pending || 0, "wait");
     if (state.showUsd && s.netUsd != null) html += stat("Lãi ròng", (s.netUsd >= 0 ? "+" : "") + num(s.netUsd, 2) + "$", s.netUsd >= 0 ? "win" : "loss");
     document.getElementById("stats").innerHTML = html;
+    notify();
 
     var pairs = state.symbols || {}, ph = "";
     Object.keys(pairs).forEach(function (key) {
@@ -214,6 +247,88 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
         + (t.exit != null ? '<div class="lv"><small>Giá ra</small><b>' + num(t.exit) + "</b></div>" : "") + "</div></div>";
     }).join("");
   }
+
+
+  // ---- Leo 04/11: notifications like Facebook (bell + red count + pop-ups), built from the trades themselves ----
+  var seenIds = null, lastSeen = 0, baseTitle = document.title, audio = null;
+  try { lastSeen = +localStorage.getItem("cw_seen") || 0; } catch (_) {}
+  if (!lastSeen) lastSeen = Date.now() - 24 * 3600e3;
+  function saveSeen() { try { localStorage.setItem("cw_seen", String(lastSeen)); } catch (_) {} }
+  function sg(v, d, u) { return (v >= 0 ? "+" : "") + num(v, d) + u; }
+  var CLOSE = {TP: ["🎯", "win", "Chạm TP"], LOI: ["💰", "win", "Đóng lời"], SL: ["🛑", "loss", "Chạm SL"], LO: ["📉", "loss", "Đóng lỗ"], HOA: ["➖", "", "Hòa vốn"], HUY: ["✖️", "", "Hủy lệnh chờ"]};
+  function events() {
+    var out = [];
+    (state && state.trades || []).forEach(function (t) {
+      if (!t || !t.signalAt) return;
+      var k = t.metal + "|" + t.side + "|" + t.signalAt, who = (t.side === "MUA" ? "MUA " : "BÁN ") + (t.name || t.metal);
+      if (t.status === "CHO" || t.status === "HUY" || (t.fillAt && t.fillAt - t.signalAt > 90000))
+        out.push({id: k + "|p", at: t.signalAt, ic: "📌", c: "wait", tt: "Lệnh chờ mới", tx: who + " tại " + num(t.entry) + " · TP " + num(t.tp) + " · SL " + num(t.sl)});
+      if (t.fillAt) out.push({id: k + "|f", at: t.fillAt, ic: "⚡", c: "run", tt: "Đã khớp lệnh", tx: who + " giá " + num(t.entry) + " · TP " + num(t.tp) + " · SL " + num(t.sl)});
+      var m = t.closedAt && CLOSE[t.status];
+      if (m) out.push({id: k + "|c", at: t.closedAt, ic: m[0], c: m[1], tt: m[2], tx: who + (t.exit != null ? " giá " + num(t.exit) : "")
+        + (t.pnlPct != null ? " · " + sg(t.pnlPct, 1, "% PnL") : "") + (t.netUsd != null ? " · " + sg(t.netUsd, 2, "$") : "")});
+    });
+    return out.sort(function (a, b) { return b.at - a.at; }).slice(0, 40);
+  }
+  function ago(ms) {
+    var s = Math.max(0, (Date.now() - ms) / 1000);
+    return s < 60 ? "vừa xong" : s < 3600 ? Math.floor(s / 60) + " phút trước" : s < 86400 ? Math.floor(s / 3600) + " giờ trước" : vn(ms);
+  }
+  function item(e, cl) {
+    return '<div class="' + cl + '"><div class="ic ' + e.c + '">' + e.ic + '</div><div><div class="nt">' + esc(e.tt) + '</div><div class="nx">' + esc(e.tx)
+      + '</div><div class="nw">' + ago(e.at) + "</div></div></div>";
+  }
+  function beep() {
+    try {
+      if (!audio) return;
+      var o = audio.createOscillator(), g = audio.createGain(), t0 = audio.currentTime;
+      o.type = "sine"; o.frequency.setValueAtTime(880, t0); o.frequency.setValueAtTime(1320, t0 + 0.09);
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.12, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.35);
+      o.connect(g); g.connect(audio.destination); o.start(t0); o.stop(t0 + 0.4);
+    } catch (_) {}
+  }
+  document.addEventListener("pointerdown", function () {
+    try { if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === "suspended") audio.resume(); } catch (_) {}
+  }, {once: false, passive: true});
+  function toast(e) {
+    var box = document.getElementById("toasts"), d = document.createElement("div");
+    d.innerHTML = item(e, "toast"); d = d.firstChild;
+    d.onclick = function () { openPanel(); d.remove(); };
+    box.appendChild(d);
+    while (box.children.length > 3) box.removeChild(box.firstChild);
+    setTimeout(function () { d.classList.add("out"); setTimeout(function () { d.remove(); }, 320); }, 8000);
+  }
+  function notify() {
+    var ev = events(), ids = {};
+    ev.forEach(function (e) { ids[e.id] = 1; });
+    if (seenIds) {
+      var fresh = ev.filter(function (e) { return !seenIds[e.id] && Date.now() - e.at < 15 * 60e3; }).reverse();
+      fresh.slice(-3).forEach(toast);
+      if (fresh.length) { beep(); var b = document.getElementById("bell"); b.classList.remove("ring"); void b.offsetWidth; b.classList.add("ring"); }
+    }
+    seenIds = ids;
+    var unread = ev.filter(function (e) { return e.at > lastSeen; }).length, n = document.getElementById("bellN");
+    n.hidden = !unread; n.textContent = unread > 9 ? "9+" : unread;
+    document.title = (unread ? "(" + unread + ") " : "") + baseTitle; window.CW_UNREAD = unread;
+    if (!document.getElementById("np").hidden) drawPanel(ev);
+  }
+  function drawPanel(ev) {
+    ev = ev || events();
+    document.getElementById("npList").innerHTML = ev.length ? ev.map(function (e) { return item(e, "ni" + (e.at > lastSeen ? " unread" : "")); }).join("")
+      : '<div class="nempty">Chưa có thông báo nào.</div>';
+  }
+  function markRead() { var ev = events(); lastSeen = Math.max(Date.now(), ev.length ? ev[0].at : 0); saveSeen(); notify(); }
+  function openPanel() {
+    var np = document.getElementById("np"); np.hidden = false; drawPanel();
+    setTimeout(markRead, 1500); // keep the blue dots a moment so the reader sees what is new
+  }
+  document.getElementById("bell").onclick = function (e) {
+    e.stopPropagation(); var np = document.getElementById("np");
+    if (np.hidden) openPanel(); else np.hidden = true;
+  };
+  document.getElementById("npAll").onclick = function (e) { e.stopPropagation(); markRead(); drawPanel(); };
+  document.getElementById("np").onclick = function (e) { e.stopPropagation(); };
+  document.addEventListener("click", function () { document.getElementById("np").hidden = true; });
 
   // Firebase sends "put" / "patch" with {path, data}; the bot replaces the whole node, so path is usually "/".
   function apply(path, data, patch) {
@@ -262,21 +377,24 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
 })();
 </script>
 <script>
-// Favicon: a pickaxe digging gold, two frames swapped (browsers do not animate SVG favicons themselves).
+// Favicon: a pickaxe digging gold, two frames swapped (browsers do not animate SVG favicons themselves),
+// with a red count bubble like Facebook while there are unread notifications.
 (function () {
-  function frame(a, spark) {
+  function frame(a, spark, n) {
     return "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
       + '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset="1" stop-color="#e09a08"/></linearGradient></defs>'
       + '<path d="M1 31 L5 22 L10 19 L14 13 L19 18 L23 20 L27 31 Z" fill="url(#g)" stroke="#7a4f00" stroke-width="1.4" stroke-linejoin="round"/>'
       + '<g transform="rotate(' + a + ' 28 26)"><line x1="28" y1="26" x2="19" y2="8" stroke="#a0622d" stroke-width="3" stroke-linecap="round"/>'
       + '<path d="M12 7 Q19 1 26 7 Q19 5 12 7 Z" fill="#e6edf5" stroke="#5d6b7c" stroke-width="1.3" stroke-linejoin="round"/></g>'
       + (spark ? '<circle cx="9" cy="13" r="2" fill="#fff3a8"/><circle cx="14" cy="9" r="1.6" fill="#ffd34d"/>' : '')
+      + (n ? '<circle cx="23" cy="9" r="9" fill="#ff3b4f" stroke="#fff" stroke-width="1.5"/><text x="23" y="13" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="'
+        + (n > 9 ? 10 : 13) + '" fill="#fff">' + (n > 9 ? "9+" : n) + '</text>' : '')
       + '</svg>');
   }
-  var f = [frame(6, false), frame(-30, true)], i = 0, el = document.getElementById("fav");
-  el.href = f[0];
-  if (!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches))
-    setInterval(function () { i = 1 - i; el.href = f[i]; }, 500);
+  var i = 0, el = document.getElementById("fav"), still = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function draw() { var n = window.CW_UNREAD || 0; el.href = i ? frame(-30, true, n) : frame(6, false, n); }
+  draw();
+  setInterval(function () { if (!still) i = 1 - i; draw(); }, 500);
 })();
 </script>
 </body>

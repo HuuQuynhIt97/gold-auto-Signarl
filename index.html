@@ -110,6 +110,18 @@ header .tick{margin-left:auto}
   font-size:clamp(26px,6vw,54px);color:#ffe08a;text-shadow:0 0 18px rgba(245,196,81,.9),0 4px 20px rgba(0,0,0,.7);text-align:center;animation:boomin 3.2s ease-out forwards;white-space:nowrap}
 .boom small{display:block;font-family:"JetBrains Mono",monospace;font-size:.45em;color:#12d18e;text-shadow:0 0 12px rgba(18,209,142,.7)}
 @keyframes boomin{0%{opacity:0;transform:translate(-50%,-50%) scale(.3)}12%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}20%{transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-60%) scale(1)}}
+.dig{position:fixed;inset:0;z-index:81;pointer-events:none;display:grid;place-items:center;background:radial-gradient(circle at 50% 45%,rgba(120,80,10,.35),rgba(5,8,15,.72));animation:cryin .3s ease-out}
+.dig.out{animation:cryout .5s ease-in forwards}
+.dig .scene{position:relative;width:min(70vw,300px);height:min(48vw,200px)}
+.dig .who{position:absolute;left:6%;bottom:0;font-size:min(26vw,120px);line-height:1;animation:huff .32s ease-in-out infinite alternate}
+.dig .axe{position:absolute;left:44%;bottom:30%;font-size:min(20vw,92px);line-height:1;transform-origin:15% 85%;animation:hack .32s ease-in infinite alternate}
+.dig .rock{position:absolute;right:0;bottom:0;font-size:min(18vw,80px);line-height:1;animation:bump .32s ease-in-out infinite}
+.dig .msg{font-family:Orbitron,sans-serif;font-weight:900;color:#ffd34d;font-size:clamp(18px,4vw,30px);text-align:center;margin-top:12px;text-shadow:0 2px 12px rgba(0,0,0,.8)}
+.dig .sub2{color:#e5d6b0;font-size:14px;text-align:center;margin-top:4px}
+.sweat{position:fixed;font-size:24px;z-index:82;pointer-events:none;animation:fly .9s ease-out forwards}
+@keyframes huff{from{transform:translateY(0) rotate(-3deg)}to{transform:translateY(-6px) rotate(3deg)}}
+@keyframes hack{from{transform:rotate(-55deg)}to{transform:rotate(20deg)}}
+@keyframes fly{0%{opacity:1;transform:translate(0,0) scale(.6)}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(1.1)}}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px}
 .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:14px}
 .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
@@ -444,18 +456,67 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
     })(k);
     setTimeout(function () { d.classList.add("out"); setTimeout(function () { d.remove(); fxBusy = false; }, 520); }, 3200);
   }
+
+  var DIG_TEXT = ["Khớp lệnh! Vác cuốc đi đào thôi…", "Lại phải cày cuốc rồi anh em ơi 😮‍💨", "Vào hầm rồi, đào ra vàng mới về", "Mồ hôi rơi, vàng sắp tới"];
+  function digging(sub) {
+    var d = document.createElement("div"), i = Math.random() * DIG_TEXT.length | 0;
+    d.className = "dig";
+    d.innerHTML = '<div><div class="scene"><div class="who">' + (i % 2 ? "🥵" : "😓") + '</div><div class="axe">⛏️</div><div class="rock">🪨</div></div><div class="msg">'
+      + DIG_TEXT[i] + "</div>" + (sub ? '<div class="sub2">' + esc(sub) + "</div>" : "") + "</div>";
+    document.body.appendChild(d);
+    soundDig();
+    var n = 0, iv = setInterval(function () { // sweat and gold chips fly off each hit
+      var sc = d.querySelector(".scene"); if (!sc) return;
+      var r = sc.getBoundingClientRect();
+      for (var k = 0; k < 3; k++) {
+        var e = document.createElement("div"); e.className = "sweat";
+        e.textContent = k === 0 ? "💦" : Math.random() < .5 ? "✨" : "🟡";
+        e.style.left = (r.left + r.width * (k === 0 ? 0.25 : 0.8)) + "px"; e.style.top = (r.top + r.height * (k === 0 ? 0.25 : 0.6)) + "px";
+        e.style.setProperty("--dx", (k === 0 ? -40 - Math.random() * 40 : (Math.random() * 120 - 30)) + "px");
+        e.style.setProperty("--dy", (-40 - Math.random() * 70) + "px");
+        if (k) e.style.fontSize = "16px";
+        document.body.appendChild(e); setTimeout(function (x) { return function () { x.remove(); }; }(e), 950);
+      }
+      if (++n >= 9) clearInterval(iv);
+    }, 320);
+    setTimeout(function () { d.classList.add("out"); setTimeout(function () { d.remove(); fxBusy = false; }, 520); }, 3100);
+  }
+  function soundDig() { // pickaxe "clink" on rock, in time with the swing, plus a tired sigh at the end
+    if (!canPlay()) return;
+    try {
+      var a = audio, now = a.currentTime;
+      for (var k = 0; k < 9; k++) {
+        var t = now + 0.3 + k * 0.32;
+        [1850, 2770, 4100].forEach(function (fq, j) {
+          var o = a.createOscillator(), g = a.createGain();
+          o.type = "triangle"; o.frequency.value = fq * (0.97 + Math.random() * 0.06);
+          g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09 / (j + 1), t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+          o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + 0.2);
+        });
+        var nz = a.createBufferSource(), bp = a.createBiquadFilter(), ng = a.createGain();
+        nz.buffer = noiseBuf(a, 0.08); bp.type = "bandpass"; bp.frequency.value = 900;
+        ng.gain.setValueAtTime(0.25, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+        nz.connect(bp); bp.connect(ng); ng.connect(a.destination); nz.start(t); nz.stop(t + 0.08);
+      }
+      var s = a.createBufferSource(), lp = a.createBiquadFilter(), sg2 = a.createGain(), ts = now + 3.25; // "phù…"
+      s.buffer = noiseBuf(a, 0.7); lp.type = "lowpass"; lp.frequency.setValueAtTime(1200, ts); lp.frequency.linearRampToValueAtTime(300, ts + 0.6);
+      sg2.gain.setValueAtTime(0.0001, ts); sg2.gain.exponentialRampToValueAtTime(0.18, ts + 0.08); sg2.gain.exponentialRampToValueAtTime(0.0001, ts + 0.65);
+      s.connect(lp); lp.connect(sg2); sg2.connect(a.destination); s.start(ts); s.stop(ts + 0.7);
+    } catch (_) {}
+  }
   function celebrate(e) {
     if (fxBusy || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
     fxBusy = true;
-    if (e.c === "win") fireworks(e.tt === "Chạm TP" ? "🎯 CHẠM TP!" : "💰 ĂN RỒI!", e.tx); else crying(e.tx);
+    if (e.c === "win") fireworks(e.tt === "Chạm TP" ? "🎯 CHẠM TP!" : "💰 ĂN RỒI!", e.tx); else if (e.c === "run") digging(e.tx); else crying(e.tx);
   }
   // Preview: add ?test=win or ?test=lose to the link.
   function runTest() {
     var tq = qs.get("test");
     if (tq === "win") celebrate({c: "win", tt: "Chạm TP", tx: "BÁN VÀNG · +8.3% PnL · +111.45$"});
     if (tq === "lose") celebrate({c: "loss", tt: "Chạm SL", tx: "MUA VÀNG · -25.0% PnL · -340.00$"});
+    if (tq === "fill") celebrate({c: "run", tt: "Đã khớp lệnh", tx: "MUA VÀNG giá 4,059.53 · TP 4,064.53 · SL 4,026.53"});
   }
-  if (qs.get("test") === "win" || qs.get("test") === "lose") {
+  if (/^(win|lose|fill)$/.test(qs.get("test") || "")) {
     var hint = document.createElement("div"); hint.className = "boom"; hint.style.animation = "none"; hint.style.fontSize = "22px"; hint.style.pointerEvents = "auto"; hint.style.cursor = "pointer";
     hint.textContent = "👆 Bấm vào đây để xem thử (có âm thanh)";
     document.body.appendChild(hint);
@@ -516,7 +577,8 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
     if (seenIds) {
       var fresh = ev.filter(function (e) { return !seenIds[e.id] && Date.now() - e.at < 15 * 60e3; }).reverse();
       fresh.slice(-3).forEach(toast);
-      var big = fresh.filter(function (e) { return e.id.slice(-2) === "|c" && (e.c === "win" || e.c === "loss"); }).pop();
+      var big = fresh.filter(function (e) { return e.id.slice(-2) === "|c" && (e.c === "win" || e.c === "loss"); }).pop()
+        || fresh.filter(function (e) { return e.id.slice(-2) === "|f"; }).pop();
       if (big) celebrate(big);
       if (fresh.length) { beep(); var b = document.getElementById("bell"); b.classList.remove("ring"); void b.offsetWidth; b.classList.add("ring"); }
     }

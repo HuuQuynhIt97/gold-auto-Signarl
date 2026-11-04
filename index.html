@@ -135,8 +135,6 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
   <div class="tabs" id="filters">
     <button class="chip on" data-f="ALL">Tất cả</button>
     <button class="chip" data-f="GOLD">Vàng</button>
-    <button class="chip" data-f="SILVER">Bạc</button>
-    <button class="chip" data-f="OIL">Dầu</button>
   </div>
   <section class="list" id="list"></section>
 
@@ -204,12 +202,13 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
       if (t.move != null) res = '<div class="res ' + (t.move >= 0 ? "up" : "down") + '">' + (t.move >= 0 ? "+" : "") + num(t.move)
         + (t.pnlPct != null ? '<div style="font-size:12px">' + (t.pnlPct >= 0 ? "+" : "") + num(t.pnlPct, 1) + "% PnL</div>" : "")
         + (t.netUsd != null ? '<div style="font-size:12px">' + (t.netUsd >= 0 ? "+" : "") + num(t.netUsd, 2) + "$</div>" : "") + "</div>";
-      var when = t.status === "CHO" ? "Tín hiệu " + vn(t.signalAt) : t.closedAt ? "Đóng " + vn(t.closedAt) : "Khớp " + vn(t.fillAt);
+      var when = t.status === "CHO" || !t.fillAt ? "Đặt lệnh chờ " + vn(t.signalAt)
+        : "Mở lệnh " + vn(t.fillAt) + (t.closedAt ? " · Đóng " + vn(t.closedAt) : "");
       return '<div class="card trade"><div><div class="top"><span class="name ' + cls(t.metal) + '">' + esc(t.name) + "</span>"
         + '<span class="badge ' + (buy ? "b-buy" : "b-sell") + '">' + (buy ? "▲ MUA" : "▼ BÁN") + "</span>"
         + '<span class="badge s-' + esc(t.status) + '">' + (STATUS[t.status] || esc(t.status)) + "</span>"
         + (t.dca ? '<span class="badge s-HUY">DCA x' + t.dca + "</span>" : "") + "</div>"
-        + '<div class="when">' + esc(t.strategy) + " · " + esc(t.tf) + " · " + when + "</div></div>" + res
+        + '<div class="when">' + when + "</div></div>" + res
         + '<div class="levels"><div class="lv"><small>Giá vào</small><b>' + num(t.entry) + '</b></div><div class="lv"><small>Chốt lời</small><b style="color:var(--win)">' + num(t.tp)
         + '</b></div><div class="lv"><small>Cắt lỗ</small><b style="color:var(--loss)">' + num(t.sl) + "</b></div>"
         + (t.exit != null ? '<div class="lv"><small>Giá ra</small><b>' + num(t.exit) + "</b></div>" : "") + "</div></div>";

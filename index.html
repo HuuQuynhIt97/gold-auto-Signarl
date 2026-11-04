@@ -25,7 +25,9 @@
 body{background:radial-gradient(1200px 600px at 10% -10%,#132036 0%,transparent 60%),radial-gradient(900px 500px at 110% 10%,#1d1630 0%,transparent 55%),var(--bg);
   color:var(--text);font-family:"Plus Jakarta Sans",system-ui,sans-serif;min-height:100vh;line-height:1.45}
 .wrap{max-width:1100px;margin:0 auto;padding:20px 16px 48px}
-header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:18px}
+header{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:center;justify-content:space-between;margin-bottom:18px}
+header .tick{margin-left:auto}
+@media (max-width:700px){header .tick{margin-left:0}}
 .brand{font-family:Orbitron,sans-serif;font-weight:900;font-size:clamp(18px,4.2vw,30px);letter-spacing:.04em;
   background:linear-gradient(90deg,#f5c451,#fff3c4 40%,#8be9ff);-webkit-background-clip:text;background-clip:text;color:transparent}
 .sub{color:var(--muted);font-size:13px;margin-top:2px}
@@ -78,6 +80,17 @@ header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:s
 @keyframes tin{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
 @keyframes tout{to{opacity:0;transform:translateX(30px)}}
 @media (prefers-reduced-motion:reduce){.bell.ring svg,.toast,.toast.out{animation:none}}
+.tick{display:flex;flex-direction:column;gap:1px;padding:6px 14px;border-radius:14px;border:1px solid #2a2410;
+  background:linear-gradient(180deg,rgba(245,196,81,.10),rgba(245,196,81,.02));min-width:0}
+.tick[hidden]{display:none}
+.tick .lbl{font-family:Orbitron,sans-serif;font-weight:700;color:var(--gold);font-size:10px;letter-spacing:.1em}
+.tick .px{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:22px;line-height:1.15;padding:0 4px;margin-left:-4px;border-radius:6px;transition:background .6s,color .6s}
+.tick .px.up{color:var(--win);background:rgba(18,209,142,.14)}.tick .px.down{color:var(--loss);background:rgba(255,93,115,.14)}
+.tick .row2{display:flex;gap:8px;font-size:11px}
+.tick .ch{font-family:"JetBrains Mono",monospace;font-weight:700}
+.tick .ch.up{color:var(--win)}.tick .ch.down{color:var(--loss)}
+.tick .at{color:var(--muted)}
+.livepnl{font-size:11px;color:var(--muted);font-weight:600}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px}
 .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:14px}
 .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
@@ -122,6 +135,11 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
     <div>
       <div class="brand" id="title">TÍN HIỆU VÀNG · BẠC · DẦU</div>
       <div class="sub">Dữ liệu đẩy trực tiếp từ bot · giờ Việt Nam</div>
+    </div>
+    <div class="tick" id="tick" hidden title="Giá vàng trên sàn BingX">
+      <div class="lbl">GIÁ VÀNG · BINGX</div>
+      <div><span class="px" id="tickPx">–</span></div>
+      <div class="row2"><span class="ch" id="tickCh"></span><span class="at" id="tickAt"></span></div>
     </div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <a id="cta" class="cta" target="_blank" rel="noopener" title="Bot đang đào vàng">
@@ -208,6 +226,7 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
       + stat(s.since ? "Tín hiệu từ " + new Date(s.since + 7*3600e3).toISOString().slice(5,10).split("-").reverse().join("/") : "Tín hiệu " + (s.days || 60) + " ngày", s.signals || 0) + stat("Đang chạy", s.running || 0, "run") + stat("Lệnh chờ", s.pending || 0, "wait");
     if (state.showUsd && s.netUsd != null) html += stat("Lãi ròng", (s.netUsd >= 0 ? "+" : "") + num(s.netUsd, 2) + "$", s.netUsd >= 0 ? "win" : "loss");
     document.getElementById("stats").innerHTML = html;
+    drawPrice();
     notify();
 
     var pairs = state.symbols || {}, ph = "";
@@ -231,8 +250,10 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
       return;
     }
     document.getElementById("list").innerHTML = trades.map(function (t) {
-      var buy = t.side === "MUA", res = "";
-      if (t.move != null) res = '<div class="res ' + (t.move >= 0 ? "up" : "down") + '">' + (t.move >= 0 ? "+" : "") + num(t.move)
+      var buy = t.side === "MUA", res = "", lp = livePnl(t);
+      if (lp) res = '<div class="res ' + (lp.move >= 0 ? "up" : "down") + '"><div class="livepnl">tạm tính</div>' + (lp.move >= 0 ? "+" : "") + num(lp.move)
+        + (lp.pct != null ? '<div style="font-size:12px">' + (lp.pct >= 0 ? "+" : "") + num(lp.pct, 1) + "% PnL</div>" : "") + "</div>";
+      else if (t.move != null) res = '<div class="res ' + (t.move >= 0 ? "up" : "down") + '">' + (t.move >= 0 ? "+" : "") + num(t.move)
         + (t.pnlPct != null ? '<div style="font-size:12px">' + (t.pnlPct >= 0 ? "+" : "") + num(t.pnlPct, 1) + "% PnL</div>" : "")
         + (t.netUsd != null ? '<div style="font-size:12px">' + (t.netUsd >= 0 ? "+" : "") + num(t.netUsd, 2) + "$</div>" : "") + "</div>";
       var when = t.status === "CHO" || !t.fillAt ? "Đặt lệnh chờ " + vn(t.signalAt)
@@ -249,6 +270,33 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
   }
 
 
+
+  // ---- Leo 04/11: live gold price (the bot sends it about every 3 s) ----
+  var pxPrev = null, pxOpen = null, pxFlash = null;
+  function drawPrice() {
+    var pr = state && state.price, box = document.getElementById("tick");
+    if (!pr || !pr.GOLD) { box.hidden = true; return; }
+    box.hidden = false;
+    var p = pr.GOLD, el = document.getElementById("tickPx");
+    if (pxOpen == null) pxOpen = p;
+    if (pxPrev != null && p !== pxPrev) {
+      el.className = "px " + (p > pxPrev ? "up" : "down");
+      clearTimeout(pxFlash); pxFlash = setTimeout(function () { el.className = "px"; }, 900);
+    }
+    pxPrev = p;
+    el.textContent = num(p, 2);
+    var d = p - pxOpen, ch = document.getElementById("tickCh");
+    ch.className = "ch " + (d > 0 ? "up" : d < 0 ? "down" : "");
+    ch.textContent = (d >= 0 ? "▲ +" : "▼ ") + num(d, 2); ch.title = "so với lúc mở trang";
+    var age = pr.at ? (Date.now() - pr.at) / 1000 : 0;
+    document.getElementById("tickAt").textContent = age > 90 ? "giá cũ · " + vn(pr.at) : new Date(pr.at || Date.now()).toLocaleTimeString("vi-VN", {timeZone: "Asia/Ho_Chi_Minh"});
+  }
+  function livePnl(t) {
+    var p = state && state.price && state.price[t.metal];
+    if (t.status !== "CHAY" || !p || !t.entry) return null;
+    var mv = t.side === "MUA" ? p - t.entry : t.entry - p;
+    return {move: mv, pct: t.lev ? mv / t.entry * t.lev * 100 : null};
+  }
   // ---- Leo 04/11: notifications like Facebook (bell + red count + pop-ups), built from the trades themselves ----
   var seenIds = null, lastSeen = 0, baseTitle = document.title, audio = null;
   try { lastSeen = +localStorage.getItem("cw_seen") || 0; } catch (_) {}
@@ -343,7 +391,7 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
   function stamp() {
     if (!state || !state.updated) return;
     var age = (Date.now() - state.updated) / 1000;
-    if (age < 180) setLive(true, "Trực tiếp · cập nhật " + vn(state.updated));
+    if (age < 180) setLive(true, "Trực tiếp · " + new Date(state.updated).toLocaleTimeString("vi-VN", {timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit"}));
     else setLive(false, "Bot chưa gửi dữ liệu mới · lần cuối " + vn(state.updated));
   }
 

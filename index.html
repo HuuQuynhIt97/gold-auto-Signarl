@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tín hiệu Vàng Bạc Dầu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Orbitron:wght@700;900&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   CHỈ CẦN SỬA 1 DÒNG: link Firebase Realtime Database của mày.
+   (hoặc mở trang với ?db=https://ten-du-an-default-rtdb.firebaseio.com)
+   ============================================================ */
+</style>
+<script>
+  window.CW_DB_URL = "https://my-project-gold-bce37-default-rtdb.asia-southeast1.firebasedatabase.app";
+</script>
+<style>
+:root{
+  --bg:#070b12; --panel:#0d1420; --panel2:#111b2b; --line:#1c2a3f; --text:#e6eef8; --muted:#7f93ad;
+  --gold:#f5c451; --silver:#c9d6e6; --oil:#8b9cff; --win:#12d18e; --loss:#ff5d73; --wait:#f0b44c; --run:#38bdf8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(1200px 600px at 10% -10%,#132036 0%,transparent 60%),radial-gradient(900px 500px at 110% 10%,#1d1630 0%,transparent 55%),var(--bg);
+  color:var(--text);font-family:"Plus Jakarta Sans",system-ui,sans-serif;min-height:100vh;line-height:1.45}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 16px 48px}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:18px}
+.brand{font-family:Orbitron,sans-serif;font-weight:900;font-size:clamp(18px,4.2vw,30px);letter-spacing:.04em;
+  background:linear-gradient(90deg,#f5c451,#fff3c4 40%,#8be9ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--muted);font-size:13px;margin-top:2px}
+.live{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--line);padding:7px 12px;border-radius:999px}
+.dot{width:9px;height:9px;border-radius:50%;background:#64748b}
+.dot.on{background:var(--win);box-shadow:0 0 0 0 rgba(18,209,142,.6);animation:pulse 1.8s infinite}
+.dot.off{background:var(--loss)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(18,209,142,.55)}70%{box-shadow:0 0 0 10px rgba(18,209,142,0)}100%{box-shadow:0 0 0 0 rgba(18,209,142,0)}}
+.cta{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(90deg,#f5c451,#f59e0b);color:#1a1205;font-weight:800;
+  text-decoration:none;padding:10px 16px;border-radius:12px;font-size:14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px}
+.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:14px}
+.k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.v{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:clamp(19px,2.4vw,26px);margin-top:4px;white-space:nowrap}
+.v.win{color:var(--win)}.v.loss{color:var(--loss)}.v.run{color:var(--run)}.v.wait{color:var(--wait)}
+.bar{height:6px;border-radius:9px;background:#1a2638;margin-top:10px;overflow:hidden}.bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--win),#5eead4)}
+.pairs{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-bottom:18px}
+.pair h3{font-family:Orbitron,sans-serif;font-size:16px;display:flex;justify-content:space-between;align-items:center}
+.pair .meta{color:var(--muted);font-size:12px;margin-top:4px}
+.dots{display:flex;gap:5px;flex-wrap:wrap;margin-top:10px;min-height:16px}
+.dots span{width:14px;height:14px;border-radius:4px}
+.dots .w{background:var(--win)}.dots .l{background:var(--loss)}
+.tabs{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}
+.tab{background:var(--panel);border:1px solid var(--line);color:var(--muted);padding:8px 14px;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer}
+.tab.on{color:#0b1220;background:var(--gold);border-color:var(--gold)}
+.chip{background:transparent;border:1px solid var(--line);color:var(--muted);padding:6px 11px;border-radius:999px;font-size:12px;cursor:pointer}
+.chip.on{color:var(--text);border-color:#3b5277;background:#14223a}
+.list{display:grid;gap:10px}
+.trade{display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:start}
+.trade .top{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.name{font-family:Orbitron,sans-serif;font-weight:700}
+.badge{font-size:11px;font-weight:800;padding:3px 8px;border-radius:7px;letter-spacing:.03em}
+.b-buy{background:rgba(18,209,142,.14);color:var(--win)}.b-sell{background:rgba(255,93,115,.14);color:var(--loss)}
+.s-TP,.s-LOI{background:rgba(18,209,142,.16);color:var(--win)}.s-SL,.s-LO{background:rgba(255,93,115,.16);color:var(--loss)}
+.s-CHAY{background:rgba(56,189,248,.15);color:var(--run)}.s-CHO{background:rgba(240,180,76,.15);color:var(--wait)}
+.s-HUY,.s-HOA{background:#1b2537;color:var(--muted)}
+.levels{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:6px}
+.lv{background:#0a111c;border:1px solid var(--line);border-radius:10px;padding:7px 9px}
+.lv b{display:block;font-family:"JetBrains Mono",monospace;font-size:14px}
+.lv small{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+.res{font-family:"JetBrains Mono",monospace;font-weight:700;text-align:right}
+.res.up{color:var(--win)}.res.down{color:var(--loss)}
+.when{color:var(--muted);font-size:12px}
+.empty{color:var(--muted);text-align:center;padding:26px;border:1px dashed var(--line);border-radius:14px}
+footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
+.gold{color:var(--gold)}.silver{color:var(--silver)}.oil{color:var(--oil)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="brand" id="title">TÍN HIỆU VÀNG · BẠC · DẦU</div>
+      <div class="sub">Dữ liệu đẩy trực tiếp từ bot · giờ Việt Nam</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <a id="cta" class="cta" href="#" target="_blank" rel="noopener" hidden>Vào nhóm nhận tín hiệu</a>
+      <div class="live"><span class="dot" id="dot"></span><span id="liveText">Đang kết nối…</span></div>
+    </div>
+  </header>
+
+  <section class="stats" id="stats"></section>
+  <section class="pairs" id="pairs"></section>
+
+  <div class="tabs">
+    <button class="tab on" data-tab="open">Đang chạy & lệnh chờ</button>
+    <button class="tab" data-tab="hist">Lịch sử</button>
+  </div>
+  <div class="tabs" id="filters">
+    <button class="chip on" data-f="ALL">Tất cả</button>
+    <button class="chip" data-f="GOLD">Vàng</button>
+    <button class="chip" data-f="SILVER">Bạc</button>
+    <button class="chip" data-f="OIL">Dầu</button>
+  </div>
+  <section class="list" id="list"></section>
+
+  <footer>Kết quả quá khứ không bảo đảm lợi nhuận sau này. Giao dịch đòn bẩy có rủi ro mất vốn.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var qs = new URLSearchParams(location.search);
+  var DB = (qs.get("db") || window.CW_DB_URL || "").trim().replace(/\/+$/, "");
+  var NODE = "cyberwhale";
+  var state = null, tab = "open", filter = "ALL", connected = false;
+
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+  function num(v, d) { if (v == null || isNaN(v)) return "–"; var a = Math.abs(v); var dd = d != null ? d : (a >= 1000 ? 2 : a >= 10 ? 2 : 3); return Number(v).toLocaleString("en-US", {minimumFractionDigits: dd, maximumFractionDigits: dd}); }
+  function vn(ms) { if (!ms) return ""; return new Date(ms).toLocaleString("vi-VN", {timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit"}); }
+  function cls(m) { return m === "GOLD" ? "gold" : m === "SILVER" ? "silver" : m === "OIL" ? "oil" : ""; }
+  var STATUS = {TP: "TP ✓", LOI: "ĐÓNG LỜI", SL: "SL", LO: "ĐÓNG LỖ", HOA: "HÒA VỐN", CHAY: "ĐANG CHẠY", CHO: "LỆNH CHỜ", HUY: "ĐÃ HỦY"};
+
+  function setLive(on, text) {
+    connected = on;
+    document.getElementById("dot").className = "dot " + (on ? "on" : "off");
+    document.getElementById("liveText").textContent = text;
+  }
+
+  function stat(k, v, c, extra) { return '<div class="card"><div class="k">' + k + '</div><div class="v ' + (c || "") + '">' + v + "</div>" + (extra || "") + "</div>"; }
+
+  function render() {
+    if (!state) return;
+    var s = state.stats || {};
+    if (state.title) { document.getElementById("title").textContent = state.title; document.title = state.title; }
+    var cta = document.getElementById("cta");
+    if (state.link && /^https?:\/\//i.test(state.link)) { cta.href = state.link; cta.hidden = false; } else cta.hidden = true;
+    var wr = s.winRate || 0;
+    var html = stat("Tỷ lệ thắng", num(wr, 1) + "%", "win", '<div class="bar"><i style="width:' + Math.min(100, wr) + '%"></i></div>')
+      + stat("Lệnh thắng", s.tp || 0, "win") + stat("Lệnh thua", s.sl || 0, "loss")
+      + stat("Tín hiệu " + (s.days || 60) + " ngày", s.signals || 0) + stat("Đang chạy", s.running || 0, "run") + stat("Lệnh chờ", s.pending || 0, "wait");
+    if (state.showUsd && s.netUsd != null) html += stat("Lãi ròng", (s.netUsd >= 0 ? "+" : "") + num(s.netUsd, 2) + "$", s.netUsd >= 0 ? "win" : "loss");
+    document.getElementById("stats").innerHTML = html;
+
+    var pairs = state.symbols || {}, ph = "";
+    Object.keys(pairs).forEach(function (key) {
+      var p = pairs[key] || {}, last = (p.last || []).slice().reverse();
+      ph += '<div class="card pair"><h3><span class="' + cls(key) + '">' + esc(p.name || key) + '</span><span class="res up">' + num(p.winRate || 0, 1) + "%</span></h3>"
+        + '<div class="meta">Thắng ' + (p.tp || 0) + " · Thua " + (p.sl || 0) + " · Đang chạy " + (p.running || 0) + " · Chờ " + (p.pending || 0)
+        + (state.showUsd && p.netUsd != null ? " · " + (p.netUsd >= 0 ? "+" : "") + num(p.netUsd, 2) + "$" : "") + "</div>"
+        + '<div class="dots" title="20 lệnh gần nhất, mới nhất bên phải">' + last.map(function (r) { return '<span class="' + (r === "TP" ? "w" : "l") + '"></span>'; }).join("") + "</div></div>";
+    });
+    document.getElementById("pairs").innerHTML = ph;
+
+    var trades = (state.trades || []).filter(function (t) {
+      if (!t) return false;
+      if (filter !== "ALL" && t.metal !== filter) return false;
+      var open = t.status === "CHAY" || t.status === "CHO";
+      return tab === "open" ? open : !open;
+    });
+    if (!trades.length) {
+      document.getElementById("list").innerHTML = '<div class="empty">' + (tab === "open" ? "Hiện chưa có lệnh đang chạy hay lệnh chờ." : "Chưa có lệnh nào trong lịch sử.") + "</div>";
+      return;
+    }
+    document.getElementById("list").innerHTML = trades.map(function (t) {
+      var buy = t.side === "MUA", res = "";
+      if (t.move != null) res = '<div class="res ' + (t.move >= 0 ? "up" : "down") + '">' + (t.move >= 0 ? "+" : "") + num(t.move)
+        + (t.pnlPct != null ? '<div style="font-size:12px">' + (t.pnlPct >= 0 ? "+" : "") + num(t.pnlPct, 1) + "% PnL</div>" : "")
+        + (t.netUsd != null ? '<div style="font-size:12px">' + (t.netUsd >= 0 ? "+" : "") + num(t.netUsd, 2) + "$</div>" : "") + "</div>";
+      var when = t.status === "CHO" ? "Tín hiệu " + vn(t.signalAt) : t.closedAt ? "Đóng " + vn(t.closedAt) : "Khớp " + vn(t.fillAt);
+      return '<div class="card trade"><div><div class="top"><span class="name ' + cls(t.metal) + '">' + esc(t.name) + "</span>"
+        + '<span class="badge ' + (buy ? "b-buy" : "b-sell") + '">' + (buy ? "▲ MUA" : "▼ BÁN") + "</span>"
+        + '<span class="badge s-' + esc(t.status) + '">' + (STATUS[t.status] || esc(t.status)) + "</span>"
+        + (t.dca ? '<span class="badge s-HUY">DCA x' + t.dca + "</span>" : "") + "</div>"
+        + '<div class="when">' + esc(t.strategy) + " · " + esc(t.tf) + " · " + when + "</div></div>" + res
+        + '<div class="levels"><div class="lv"><small>Giá vào</small><b>' + num(t.entry) + '</b></div><div class="lv"><small>Chốt lời</small><b style="color:var(--win)">' + num(t.tp)
+        + '</b></div><div class="lv"><small>Cắt lỗ</small><b style="color:var(--loss)">' + num(t.sl) + "</b></div>"
+        + (t.exit != null ? '<div class="lv"><small>Giá ra</small><b>' + num(t.exit) + "</b></div>" : "") + "</div></div>";
+    }).join("");
+  }
+
+  // Firebase sends "put" / "patch" with {path, data}; the bot replaces the whole node, so path is usually "/".
+  function apply(path, data, patch) {
+    if (path === "/" || !path) { state = patch ? Object.assign(state || {}, data) : data; return; }
+    state = state || {};
+    var keys = path.replace(/^\/+/, "").split("/"), o = state;
+    for (var i = 0; i < keys.length - 1; i++) { if (typeof o[keys[i]] !== "object" || o[keys[i]] === null) o[keys[i]] = {}; o = o[keys[i]]; }
+    var last = keys[keys.length - 1];
+    if (patch && typeof data === "object" && data) o[last] = Object.assign(o[last] || {}, data); else o[last] = data;
+  }
+
+  function stamp() {
+    if (!state || !state.updated) return;
+    var age = (Date.now() - state.updated) / 1000;
+    if (age < 180) setLive(true, "Trực tiếp · cập nhật " + vn(state.updated));
+    else setLive(false, "Bot chưa gửi dữ liệu mới · lần cuối " + vn(state.updated));
+  }
+
+  var poll = null;
+  function startPolling() {
+    if (poll) return;
+    var go = function () {
+      fetch(DB + "/" + NODE + ".json", {cache: "no-store"}).then(function (r) { return r.json(); })
+        .then(function (d) { state = d; render(); stamp(); }).catch(function () { setLive(false, "Mất kết nối, đang thử lại…"); });
+    };
+    go(); poll = setInterval(go, 15000);
+  }
+
+  function start() {
+    if (!/^https:\/\//.test(DB) || DB.indexOf("DIEN-LINK") >= 0) { setLive(false, "Chưa điền link Firebase trong trang"); return; }
+    if (!window.EventSource) { startPolling(); return; }
+    var es = new EventSource(DB + "/" + NODE + ".json"), fails = 0;
+    var onMsg = function (patch) { return function (e) { try { var m = JSON.parse(e.data); apply(m.path, m.data, patch); fails = 0; render(); stamp(); } catch (_) {} }; };
+    es.addEventListener("put", onMsg(false));
+    es.addEventListener("patch", onMsg(true));
+    es.addEventListener("cancel", function () { es.close(); setLive(false, "Firebase không cho đọc (kiểm tra Rules)"); });
+    es.onerror = function () { if (++fails >= 3) { es.close(); startPolling(); } else setLive(false, "Mất kết nối, đang thử lại…"); };
+  }
+
+  document.querySelectorAll(".tab").forEach(function (b) { b.onclick = function () {
+    document.querySelectorAll(".tab").forEach(function (x) { x.classList.remove("on"); }); b.classList.add("on"); tab = b.dataset.tab; render(); }; });
+  document.querySelectorAll("#filters .chip").forEach(function (b) { b.onclick = function () {
+    document.querySelectorAll("#filters .chip").forEach(function (x) { x.classList.remove("on"); }); b.classList.add("on"); filter = b.dataset.f; render(); }; });
+  setInterval(stamp, 15000);
+  start();
+})();
+</script>
+</body>
+</html>

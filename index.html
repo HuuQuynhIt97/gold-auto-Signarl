@@ -63,6 +63,9 @@ header .tick{margin-left:auto}
 .bell.ring svg{animation:ring .9s ease-in-out}
 @keyframes ring{0%,100%{transform:rotate(0)}15%{transform:rotate(18deg)}30%{transform:rotate(-16deg)}45%{transform:rotate(12deg)}60%{transform:rotate(-8deg)}75%{transform:rotate(4deg)}}
 .bell .n[hidden]{display:none}
+#snd{font-size:17px}
+#snd.off{animation:nudge 2.4s ease-in-out infinite}
+@keyframes nudge{0%,80%,100%{transform:none}85%{transform:rotate(-12deg)}90%{transform:rotate(12deg)}95%{transform:rotate(-6deg)}}
 .bell .n{position:absolute;top:-4px;right:-4px;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:#ff3b4f;color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center;border:2px solid var(--bg)}
 .np{position:absolute;right:0;top:48px;width:min(360px,calc(100vw - 32px));max-height:70vh;overflow:auto;z-index:50;background:var(--panel2);border:1px solid #26385a;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.55)}
 @media (max-width:560px){.np{position:fixed;left:16px;right:16px;top:72px;width:auto;max-height:75vh}}
@@ -179,6 +182,7 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
         </svg>
         <span class="cap"><b>Đang đào vàng</b><small id="ctaSub">bot chạy 24/7</small></span>
       </a>
+      <button id="snd" class="bell" type="button" title="Bật âm thanh" aria-label="Âm thanh">🔇</button>
       <div class="bellw">
         <button id="bell" class="bell" type="button" aria-label="Thông báo" title="Thông báo">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
@@ -314,6 +318,78 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
     return {move: mv, pct: t.lev ? mv / t.entry * t.lev * 100 : null};
   }
 
+
+  // ---- sounds (made in the browser, no files). Browsers only allow sound after one click on the page. ----
+  var soundOn = true;
+  try { soundOn = localStorage.getItem("cw_sound") !== "0"; } catch (_) {}
+  function ac() {
+    try { if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === "suspended") audio.resume(); } catch (_) {}
+    return audio;
+  }
+  function canPlay() { return soundOn && audio && audio.state === "running"; }
+  function sndBtn() {
+    var b = document.getElementById("snd"), live = canPlay();
+    b.textContent = live ? "🔊" : "🔇"; b.classList.toggle("off", !live);
+    b.title = !soundOn ? "Âm thanh đang tắt, bấm để bật" : live ? "Âm thanh đang bật, bấm để tắt" : "Bấm để bật âm thanh";
+  }
+  document.getElementById("snd").onclick = function (e) {
+    e.stopPropagation();
+    if (canPlay()) soundOn = false; else { soundOn = true; ac(); }
+    try { localStorage.setItem("cw_sound", soundOn ? "1" : "0"); } catch (_) {}
+    setTimeout(sndBtn, 60); if (soundOn) setTimeout(beep, 80);
+  };
+  setTimeout(sndBtn, 0); setInterval(sndBtn, 3000);
+  function noiseBuf(a, sec) {
+    var b = a.createBuffer(1, a.sampleRate * sec, a.sampleRate), d = b.getChannelData(0);
+    for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return b;
+  }
+  function boomAt(a, t, vol) {
+    var src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+    src.buffer = noiseBuf(a, 1.6); f.type = "lowpass"; f.frequency.setValueAtTime(1800, t); f.frequency.exponentialRampToValueAtTime(140, t + 1.2);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.5);
+    src.connect(f); f.connect(g); g.connect(a.destination); src.start(t); src.stop(t + 1.6);
+    for (var k = 0; k < 14; k++) { // crackle
+      var c = a.createBufferSource(), cg = a.createGain(), hp = a.createBiquadFilter(), ct = t + 0.25 + Math.random() * 0.9;
+      c.buffer = noiseBuf(a, 0.04); hp.type = "highpass"; hp.frequency.value = 3000;
+      cg.gain.setValueAtTime(vol * 0.35, ct); cg.gain.exponentialRampToValueAtTime(0.0001, ct + 0.035);
+      c.connect(hp); hp.connect(cg); cg.connect(a.destination); c.start(ct); c.stop(ct + 0.05);
+    }
+  }
+  function whistleAt(a, t) {
+    var o = a.createOscillator(), g = a.createGain();
+    o.type = "sine"; o.frequency.setValueAtTime(900, t); o.frequency.exponentialRampToValueAtTime(2400, t + 0.45);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + 0.55);
+  }
+  function soundWin(rocketTimes) {
+    if (!canPlay()) return;
+    try {
+      var a = audio, now = a.currentTime;
+      rocketTimes.forEach(function (ms) { var t = now + ms / 1000; whistleAt(a, t); boomAt(a, t + 0.5, 0.5 + Math.random() * 0.3); });
+      // a short "ta-da"
+      [523.25, 659.25, 783.99, 1046.5].forEach(function (fq, i) {
+        var o = a.createOscillator(), g = a.createGain(), t = now + 0.05 + i * 0.09;
+        o.type = "triangle"; o.frequency.value = fq;
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + (i === 3 ? 0.9 : 0.25));
+        o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + 1);
+      });
+    } catch (_) {}
+  }
+  function soundLose() { // the classic sad "wah wah wah waaah"
+    if (!canPlay()) return;
+    try {
+      var a = audio, now = a.currentTime, notes = [[392, 0, .45], [370, .5, .45], [349.2, 1, .45], [329.6, 1.5, 1.4]];
+      notes.forEach(function (n) {
+        var o = a.createOscillator(), f = a.createBiquadFilter(), g = a.createGain(), lfo = a.createOscillator(), lg = a.createGain(), t = now + n[1];
+        o.type = "sawtooth"; o.frequency.setValueAtTime(n[0], t);
+        if (n[2] > 1) { o.frequency.linearRampToValueAtTime(n[0] * 0.94, t + n[2]); lfo.frequency.value = 6; lg.gain.value = 7; lfo.connect(lg); lg.connect(o.frequency); lfo.start(t); lfo.stop(t + n[2]); }
+        f.type = "lowpass"; f.frequency.setValueAtTime(500, t); f.frequency.linearRampToValueAtTime(1500, t + 0.12); f.frequency.linearRampToValueAtTime(600, t + n[2]);
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16, t + 0.04); g.gain.setValueAtTime(0.16, t + n[2] - 0.08); g.gain.exponentialRampToValueAtTime(0.0001, t + n[2]);
+        o.connect(f); f.connect(g); g.connect(a.destination); o.start(t); o.stop(t + n[2] + 0.02);
+      });
+    } catch (_) {}
+  }
   // ---- Leo 04/11: a win sets off fireworks, a loss shows a crying meme ----
   var fxBusy = false;
   function fireworks(text, sub) {
@@ -330,6 +406,7 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
       }
     }
     for (var k = 0; k < 7; k++) rockets.push({at: k * 260 + Math.random() * 120, x: W * (0.15 + Math.random() * 0.7), y: H, ty: H * (0.15 + Math.random() * 0.35), launched: false});
+    soundWin(rockets.map(function (r) { return r.at; }));
     function frame(now) {
       var el = now - t0;
       ctx.globalCompositeOperation = "destination-out"; ctx.fillStyle = "rgba(0,0,0,.22)"; ctx.fillRect(0, 0, W, H);
@@ -357,6 +434,7 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
   function crying(sub) {
     var d = document.createElement("div"), i = Math.random() * CRY_TEXT.length | 0;
     d.className = "cry";
+    soundLose();
     d.innerHTML = '<div><div class="face" style="text-align:center">' + CRY[i % CRY.length] + '</div><div class="msg">' + CRY_TEXT[i] + "</div>" + (sub ? '<div class="sub2">' + esc(sub) + "</div>" : "") + "</div>";
     document.body.appendChild(d);
     for (var k = 0; k < 18; k++) (function (k) {
@@ -372,11 +450,17 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
     if (e.c === "win") fireworks(e.tt === "Chạm TP" ? "🎯 CHẠM TP!" : "💰 ĂN RỒI!", e.tx); else crying(e.tx);
   }
   // Preview: add ?test=win or ?test=lose to the link.
-  setTimeout(function () {
+  function runTest() {
     var tq = qs.get("test");
     if (tq === "win") celebrate({c: "win", tt: "Chạm TP", tx: "BÁN VÀNG · +8.3% PnL · +111.45$"});
     if (tq === "lose") celebrate({c: "loss", tt: "Chạm SL", tx: "MUA VÀNG · -25.0% PnL · -340.00$"});
-  }, 800);
+  }
+  if (qs.get("test") === "win" || qs.get("test") === "lose") {
+    var hint = document.createElement("div"); hint.className = "boom"; hint.style.animation = "none"; hint.style.fontSize = "22px"; hint.style.pointerEvents = "auto"; hint.style.cursor = "pointer";
+    hint.textContent = "👆 Bấm vào đây để xem thử (có âm thanh)";
+    document.body.appendChild(hint);
+    hint.onclick = function (e) { e.stopPropagation(); soundOn = true; ac(); hint.remove(); setTimeout(function () { sndBtn(); runTest(); }, 120); };
+  }
   // ---- Leo 04/11: notifications like Facebook (bell + red count + pop-ups), built from the trades themselves ----
   var seenIds = null, lastSeen = 0, baseTitle = document.title, audio = null;
   try { lastSeen = +localStorage.getItem("cw_seen") || 0; } catch (_) {}
@@ -408,7 +492,7 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
   }
   function beep() {
     try {
-      if (!audio) return;
+      if (!canPlay()) return;
       var o = audio.createOscillator(), g = audio.createGain(), t0 = audio.currentTime;
       o.type = "sine"; o.frequency.setValueAtTime(880, t0); o.frequency.setValueAtTime(1320, t0 + 0.09);
       g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.12, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.35);

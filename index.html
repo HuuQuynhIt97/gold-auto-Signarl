@@ -92,6 +92,21 @@ header .tick{margin-left:auto}
 .tick .ch.up{color:var(--win)}.tick .ch.down{color:var(--loss)}
 .tick .at{color:var(--muted)}
 .livepnl{font-size:11px;color:var(--muted);font-weight:600}
+.fx{position:fixed;inset:0;z-index:80;pointer-events:none}
+.cry{position:fixed;inset:0;z-index:81;pointer-events:none;display:grid;place-items:center;background:radial-gradient(circle at 50% 45%,rgba(40,60,110,.45),rgba(5,8,15,.75));animation:cryin .3s ease-out}
+.cry.out{animation:cryout .5s ease-in forwards}
+.cry .face{font-size:min(38vw,190px);line-height:1;animation:sob .45s ease-in-out infinite alternate;filter:drop-shadow(0 10px 30px rgba(0,0,0,.6))}
+.cry .msg{font-family:Orbitron,sans-serif;font-weight:900;color:#9cc7ff;font-size:clamp(18px,4vw,30px);text-align:center;margin-top:10px;text-shadow:0 2px 12px rgba(0,0,0,.8)}
+.cry .sub2{color:#c4d2e4;font-size:14px;text-align:center;margin-top:4px}
+.tear{position:fixed;top:-30px;font-size:26px;animation:fall linear forwards}
+@keyframes sob{from{transform:rotate(-6deg) scale(1)}to{transform:rotate(6deg) scale(1.06)}}
+@keyframes cryin{from{opacity:0}to{opacity:1}}
+@keyframes cryout{to{opacity:0}}
+@keyframes fall{to{transform:translateY(110vh) rotate(25deg)}}
+.boom{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:81;pointer-events:none;font-family:Orbitron,sans-serif;font-weight:900;
+  font-size:clamp(26px,6vw,54px);color:#ffe08a;text-shadow:0 0 18px rgba(245,196,81,.9),0 4px 20px rgba(0,0,0,.7);text-align:center;animation:boomin 3.2s ease-out forwards;white-space:nowrap}
+.boom small{display:block;font-family:"JetBrains Mono",monospace;font-size:.45em;color:#12d18e;text-shadow:0 0 12px rgba(18,209,142,.7)}
+@keyframes boomin{0%{opacity:0;transform:translate(-50%,-50%) scale(.3)}12%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}20%{transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-60%) scale(1)}}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px}
 .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:14px}
 .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
@@ -298,6 +313,70 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
     var mv = t.side === "MUA" ? p - t.entry : t.entry - p;
     return {move: mv, pct: t.lev ? mv / t.entry * t.lev * 100 : null};
   }
+
+  // ---- Leo 04/11: a win sets off fireworks, a loss shows a crying meme ----
+  var fxBusy = false;
+  function fireworks(text, sub) {
+    var cv = document.createElement("canvas"), ctx = cv.getContext("2d"), W, H, parts = [], rockets = [], t0 = performance.now();
+    cv.className = "fx"; document.body.appendChild(cv);
+    function size() { W = cv.width = innerWidth * devicePixelRatio; H = cv.height = innerHeight * devicePixelRatio; }
+    size(); addEventListener("resize", size);
+    var COLS = ["#ffd34d", "#ff5d73", "#12d18e", "#38bdf8", "#c084fc", "#fff3a8", "#f97316"];
+    function burst(x, y) {
+      var c = COLS[Math.random() * COLS.length | 0], c2 = COLS[Math.random() * COLS.length | 0], n = 70 + Math.random() * 40;
+      for (var i = 0; i < n; i++) {
+        var a = Math.PI * 2 * i / n, v = (2 + Math.random() * 4.5) * devicePixelRatio;
+        parts.push({x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, c: i % 3 ? c : c2, r: (1.4 + Math.random() * 1.6) * devicePixelRatio});
+      }
+    }
+    for (var k = 0; k < 7; k++) rockets.push({at: k * 260 + Math.random() * 120, x: W * (0.15 + Math.random() * 0.7), y: H, ty: H * (0.15 + Math.random() * 0.35), launched: false});
+    function frame(now) {
+      var el = now - t0;
+      ctx.globalCompositeOperation = "destination-out"; ctx.fillStyle = "rgba(0,0,0,.22)"; ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = "lighter";
+      rockets.forEach(function (r) {
+        if (el < r.at || r.done) return;
+        r.y -= (H * 0.022); ctx.fillStyle = "#fff3a8"; ctx.beginPath(); ctx.arc(r.x, r.y, 2.4 * devicePixelRatio, 0, 7); ctx.fill();
+        if (r.y <= r.ty) { r.done = true; burst(r.x, r.y); }
+      });
+      parts.forEach(function (p) {
+        p.x += p.vx; p.y += p.vy; p.vy += 0.06 * devicePixelRatio; p.vx *= 0.985; p.vy *= 0.985; p.life -= 0.012;
+        if (p.life > 0) { ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill(); }
+      });
+      ctx.globalAlpha = 1;
+      parts = parts.filter(function (p) { return p.life > 0; });
+      if (el < 4200 || parts.length) requestAnimationFrame(frame);
+      else { cv.remove(); removeEventListener("resize", size); fxBusy = false; }
+    }
+    requestAnimationFrame(frame);
+    var b = document.createElement("div"); b.className = "boom"; b.innerHTML = esc(text) + (sub ? "<small>" + esc(sub) + "</small>" : "");
+    document.body.appendChild(b); setTimeout(function () { b.remove(); }, 3300);
+  }
+  var CRY = ["😭", "😢", "🥲", "😿"];
+  var CRY_TEXT = ["Toang rồi các bác ơi…", "Thua keo này ta bày keo khác", "Cắt lỗ cũng là một nghệ thuật", "Khóc xíu rồi đào tiếp"];
+  function crying(sub) {
+    var d = document.createElement("div"), i = Math.random() * CRY_TEXT.length | 0;
+    d.className = "cry";
+    d.innerHTML = '<div><div class="face" style="text-align:center">' + CRY[i % CRY.length] + '</div><div class="msg">' + CRY_TEXT[i] + "</div>" + (sub ? '<div class="sub2">' + esc(sub) + "</div>" : "") + "</div>";
+    document.body.appendChild(d);
+    for (var k = 0; k < 18; k++) (function (k) {
+      var t = document.createElement("div"); t.className = "tear"; t.textContent = k % 3 ? "💧" : "😭";
+      t.style.left = (Math.random() * 100) + "vw"; t.style.animationDuration = (1.6 + Math.random() * 1.6) + "s"; t.style.animationDelay = (Math.random() * 1.2) + "s";
+      t.style.zIndex = 82; document.body.appendChild(t); setTimeout(function () { t.remove(); }, 4300);
+    })(k);
+    setTimeout(function () { d.classList.add("out"); setTimeout(function () { d.remove(); fxBusy = false; }, 520); }, 3200);
+  }
+  function celebrate(e) {
+    if (fxBusy || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
+    fxBusy = true;
+    if (e.c === "win") fireworks(e.tt === "Chạm TP" ? "🎯 CHẠM TP!" : "💰 ĂN RỒI!", e.tx); else crying(e.tx);
+  }
+  // Preview: add ?test=win or ?test=lose to the link.
+  setTimeout(function () {
+    var tq = qs.get("test");
+    if (tq === "win") celebrate({c: "win", tt: "Chạm TP", tx: "BÁN VÀNG · +8.3% PnL · +111.45$"});
+    if (tq === "lose") celebrate({c: "loss", tt: "Chạm SL", tx: "MUA VÀNG · -25.0% PnL · -340.00$"});
+  }, 800);
   // ---- Leo 04/11: notifications like Facebook (bell + red count + pop-ups), built from the trades themselves ----
   var seenIds = null, lastSeen = 0, baseTitle = document.title, audio = null;
   try { lastSeen = +localStorage.getItem("cw_seen") || 0; } catch (_) {}
@@ -353,6 +432,8 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
     if (seenIds) {
       var fresh = ev.filter(function (e) { return !seenIds[e.id] && Date.now() - e.at < 15 * 60e3; }).reverse();
       fresh.slice(-3).forEach(toast);
+      var big = fresh.filter(function (e) { return e.id.slice(-2) === "|c" && (e.c === "win" || e.c === "loss"); }).pop();
+      if (big) celebrate(big);
       if (fresh.length) { beep(); var b = document.getElementById("bell"); b.classList.remove("ring"); void b.offsetWidth; b.classList.add("ring"); }
     }
     seenIds = ids;

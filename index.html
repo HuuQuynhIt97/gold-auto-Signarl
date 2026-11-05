@@ -155,6 +155,8 @@ header .tick{margin-left:auto}
 .s-TP,.s-LOI{background:rgba(18,209,142,.16);color:var(--win)}.s-SL,.s-LO{background:rgba(255,93,115,.16);color:var(--loss)}
 .s-CHAY{background:rgba(56,189,248,.15);color:var(--run)}.s-CHO{background:rgba(240,180,76,.15);color:var(--wait)}
 .s-HUY,.s-HOA{background:#1b2537;color:var(--muted)}
+.s-HH{background:#2a2233;color:#b9a3d6}
+.v.exp{color:#b9a3d6}
 .levels{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:6px}
 .lv{background:#0a111c;border:1px solid var(--line);border-radius:10px;padding:7px 9px}
 .lv b{display:block;font-family:"JetBrains Mono",monospace;font-size:14px}
@@ -242,7 +244,7 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
   function num(v, d) { if (v == null || isNaN(v)) return "–"; var a = Math.abs(v); var dd = d != null ? d : (a >= 1000 ? 2 : a >= 10 ? 2 : 3); return Number(v).toLocaleString("en-US", {minimumFractionDigits: dd, maximumFractionDigits: dd}); }
   function vn(ms) { if (!ms) return ""; return new Date(ms).toLocaleString("vi-VN", {timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit"}); }
   function cls(m) { return m === "GOLD" ? "gold" : m === "SILVER" ? "silver" : m === "OIL" ? "oil" : ""; }
-  var STATUS = {TP: "TP ✓", LOI: "ĐÓNG LỜI", SL: "SL", LO: "ĐÓNG LỖ", HOA: "HÒA VỐN", CHAY: "ĐANG CHẠY", CHO: "LỆNH CHỜ", HUY: "ĐÃ HỦY"};
+  var STATUS = {TP: "TP ✓", LOI: "ĐÓNG LỜI", SL: "SL", LO: "ĐÓNG LỖ", HOA: "HÒA VỐN", CHAY: "ĐANG CHẠY", CHO: "LỆNH CHỜ", HH: "HẾT HẠN", HUY: "ĐÃ HỦY"};
 
   function setLive(on, text) {
     connected = on;
@@ -262,7 +264,8 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
     var wr = s.winRate || 0;
     var html = stat("Tỷ lệ thắng", num(wr, 1) + "%", "win", '<div class="bar"><i style="width:' + Math.min(100, wr) + '%"></i></div>')
       + stat("Lệnh thắng", s.tp || 0, "win") + stat("Lệnh thua", s.sl || 0, "loss")
-      + stat(s.since ? "Tín hiệu từ " + new Date(s.since + 7*3600e3).toISOString().slice(5,10).split("-").reverse().join("/") : "Tín hiệu " + (s.days || 60) + " ngày", s.signals || 0) + stat("Đang chạy", s.running || 0, "run") + stat("Lệnh chờ", s.pending || 0, "wait");
+      + stat(s.since ? "Tổng tín hiệu từ " + new Date(s.since + 7*3600e3).toISOString().slice(5,10).split("-").reverse().join("/") : "Tổng tín hiệu " + (s.days || 60) + " ngày", s.signals || 0) + stat("Đang chạy", s.running || 0, "run") + stat("Lệnh chờ", s.pending || 0, "wait")
+      + stat("Hết hạn chờ", s.expired || 0, "exp");
     if (state.showUsd && s.netUsd != null) html += stat("Lãi ròng", (s.netUsd >= 0 ? "+" : "") + num(s.netUsd, 2) + "$", s.netUsd >= 0 ? "win" : "loss");
     document.getElementById("stats").innerHTML = html;
     drawPrice();
@@ -272,7 +275,7 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
     Object.keys(pairs).forEach(function (key) {
       var p = pairs[key] || {}, last = (p.last || []).slice().reverse();
       ph += '<div class="card pair"><h3><span class="' + cls(key) + '">' + esc(p.name || key) + '</span><span class="res up">' + num(p.winRate || 0, 1) + "%</span></h3>"
-        + '<div class="meta">Thắng ' + (p.tp || 0) + " · Thua " + (p.sl || 0) + " · Đang chạy " + (p.running || 0) + " · Chờ " + (p.pending || 0)
+        + '<div class="meta">Thắng ' + (p.tp || 0) + " · Thua " + (p.sl || 0) + " · Đang chạy " + (p.running || 0) + " · Chờ " + (p.pending || 0) + (p.expired ? " · Hết hạn " + p.expired : "")
         + (state.showUsd && p.netUsd != null ? " · " + (p.netUsd >= 0 ? "+" : "") + num(p.netUsd, 2) + "$" : "") + "</div>"
         + '<div class="dots" title="20 lệnh gần nhất, mới nhất bên phải">' + last.map(function (r) { return '<span class="' + (r === "TP" ? "w" : "l") + '"></span>'; }).join("") + "</div></div>";
     });
@@ -295,7 +298,8 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
       else if (t.move != null) res = '<div class="res ' + (t.move >= 0 ? "up" : "down") + '">' + (t.move >= 0 ? "+" : "") + num(t.move)
         + (t.pnlPct != null ? '<div style="font-size:12px">' + (t.pnlPct >= 0 ? "+" : "") + num(t.pnlPct, 1) + "% PnL</div>" : "")
         + (t.netUsd != null ? '<div style="font-size:12px">' + (t.netUsd >= 0 ? "+" : "") + num(t.netUsd, 2) + "$</div>" : "") + "</div>";
-      var when = t.status === "CHO" || !t.fillAt ? "Đặt lệnh chờ " + vn(t.signalAt)
+      var when = t.status === "HH" ? "Đặt lệnh chờ " + vn(t.signalAt) + (t.closedAt ? " · Hết hạn " + vn(t.closedAt) : "")
+        : t.status === "CHO" || !t.fillAt ? "Đặt lệnh chờ " + vn(t.signalAt)
         : "Mở lệnh " + vn(t.fillAt) + (t.closedAt ? " · Đóng " + vn(t.closedAt) : "");
       return '<div class="card trade"><div><div class="top"><span class="name ' + cls(t.metal) + '">' + esc(t.name) + "</span>"
         + '<span class="badge ' + (buy ? "b-buy" : "b-sell") + '">' + (buy ? "▲ MUA" : "▼ BÁN") + "</span>"
@@ -560,13 +564,13 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
   if (!lastSeen) lastSeen = Date.now() - 24 * 3600e3;
   function saveSeen() { try { localStorage.setItem("cw_seen", String(lastSeen)); } catch (_) {} }
   function sg(v, d, u) { return (v >= 0 ? "+" : "") + num(v, d) + u; }
-  var CLOSE = {TP: ["🎯", "win", "Chạm TP"], LOI: ["💰", "win", "Đóng lời"], SL: ["🛑", "loss", "Chạm SL"], LO: ["📉", "loss", "Đóng lỗ"], HOA: ["➖", "", "Hòa vốn"], HUY: ["✖️", "", "Hủy lệnh chờ"]};
+  var CLOSE = {TP: ["🎯", "win", "Chạm TP"], LOI: ["💰", "win", "Đóng lời"], SL: ["🛑", "loss", "Chạm SL"], LO: ["📉", "loss", "Đóng lỗ"], HOA: ["➖", "", "Hòa vốn"], HUY: ["✖️", "", "Hủy lệnh chờ"], HH: ["⌛", "", "Lệnh chờ hết hạn"]};
   function events() {
     var out = [];
     (state && state.trades || []).forEach(function (t) {
       if (!t || !t.signalAt) return;
       var k = t.metal + "|" + t.side + "|" + t.signalAt, who = (t.side === "MUA" ? "MUA " : "BÁN ") + (t.name || t.metal);
-      if (t.status === "CHO" || t.status === "HUY" || (t.fillAt && t.fillAt - t.signalAt > 90000))
+      if (t.status === "CHO" || t.status === "HUY" || t.status === "HH" || (t.fillAt && t.fillAt - t.signalAt > 90000))
         out.push({id: k + "|p", at: t.signalAt, ic: "📌", c: "wait", tt: "Lệnh chờ mới", tx: who + " tại " + num(t.entry) + " · TP " + num(t.tp) + " · SL " + num(t.sl)});
       if (t.fillAt) out.push({id: k + "|f", at: t.fillAt, ic: "⚡", c: "run", tt: "Đã khớp lệnh", tx: who + " giá " + num(t.entry) + " · TP " + num(t.tp) + " · SL " + num(t.sl)});
       var m = t.closedAt && CLOSE[t.status];

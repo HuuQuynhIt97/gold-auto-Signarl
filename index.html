@@ -319,11 +319,10 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
     return (d ? d + "n " : "") + p(h) + ":" + p(m) + ":" + p(s2);
   }
   function waitBox(t) {
-    var waited = '<div><small>Đã chờ</small><div class="wl" data-since="' + t.signalAt + '">' + hms((Date.now() - t.signalAt) / 1000) + "</div></div>";
-    if (!t.expiresAt) return '<div class="pend">' + waited + '<div><small>Hết hạn</small><div class="wl">Chờ tới khi khớp</div></div></div>';
+    if (!t.expiresAt) return '<div class="pend"><div><small>Hết hạn</small><div class="wl">Chờ tới khi khớp</div></div></div>';
     var left = (t.expiresAt - Date.now()) / 1000, all = Math.max(1, (t.expiresAt - t.signalAt) / 1000);
     return '<div class="pend"><div><small>Còn lại để khớp</small><div class="cd' + (left < 1800 ? " soon" : "") + '" data-exp="' + t.expiresAt + '">' + hms(left) + "</div></div>"
-      + waited + '<div><small>Hết hạn lúc</small><div class="wl">' + vn(t.expiresAt) + "</div></div>"
+      + '<div><small>Hết hạn lúc</small><div class="wl">' + vn(t.expiresAt) + "</div></div>"
       + '<div class="pb"><i data-from="' + t.signalAt + '" data-exp="' + t.expiresAt + '" style="width:' + Math.min(100, Math.max(0, 100 - left / all * 100)) + '%"></i></div></div>';
   }
   setInterval(function () {
@@ -332,7 +331,6 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
       var left = (+el.dataset.exp - now) / 1000;
       el.textContent = left > 0 ? hms(left) : "Hết hạn"; el.classList.toggle("soon", left < 1800);
     });
-    document.querySelectorAll(".pend .wl[data-since]").forEach(function (el) { el.textContent = hms((now - +el.dataset.since) / 1000); });
     document.querySelectorAll(".pend .pb>i").forEach(function (el) {
       var a = +el.dataset.from, b = +el.dataset.exp; el.style.width = Math.min(100, Math.max(0, (now - a) / Math.max(1, b - a) * 100)) + "%";
     });

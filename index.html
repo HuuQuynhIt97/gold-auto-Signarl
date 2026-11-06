@@ -382,9 +382,16 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
     var d = p - pxOpen, ch = document.getElementById("tickCh");
     ch.className = "ch " + (d > 0 ? "up" : d < 0 ? "down" : "");
     ch.textContent = (d >= 0 ? "▲ +" : "▼ ") + num(d, 2); ch.title = "so với lúc mở trang";
-    var age = pr.at ? (Date.now() - pr.at) / 1000 : 0;
-    document.getElementById("tickAt").textContent = age > 90 ? "giá cũ · " + vn(pr.at) : new Date(pr.at || Date.now()).toLocaleTimeString("vi-VN", {timeZone: "Asia/Ho_Chi_Minh"});
+    tickClock();
   }
+  // Leo 06/11: the clock under the price runs every second (VN time); an old price still says "giá cũ".
+  function tickClock() {
+    var pr = state && state.price, at = document.getElementById("tickAt");
+    if (!pr || !pr.GOLD || !at) return;
+    var age = pr.at ? (Date.now() - pr.at) / 1000 : 0;
+    at.textContent = age > 90 ? "giá cũ · " + vn(pr.at) : new Date().toLocaleTimeString("vi-VN", {timeZone: "Asia/Ho_Chi_Minh"});
+  }
+  setInterval(tickClock, 1000);
   function livePnl(t) {
     var p = state && state.price && state.price[t.metal];
     if (t.status !== "CHAY" || !p || !t.entry) return null;

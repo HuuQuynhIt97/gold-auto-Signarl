@@ -144,6 +144,8 @@ header .tick{margin-left:auto}
 .pend .cd.soon{color:var(--loss);animation:blink 1s steps(2) infinite}
 .pend small{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
 .pend .wl{font-size:12px;color:#e5d6b0}
+.hold{flex:1 1 100%;display:flex;align-items:center;gap:8px;font-size:13px;color:#ffd58a;border-bottom:1px dashed rgba(240,180,76,.3);padding-bottom:6px}
+.hold b{color:#fff}.s-HOLD{background:rgba(148,163,184,.18);color:#cbd5e1}
 .pend .pb{flex:1 1 100%;height:5px;border-radius:9px;background:#1a2638;overflow:hidden}.pend .pb>i{display:block;height:100%;background:linear-gradient(90deg,var(--wait),var(--loss))}
 @keyframes blink{50%{opacity:.45}}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px}
@@ -321,6 +323,7 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
       return '<div class="card trade"><div><div class="top"><span class="name ' + cls(t.metal) + '">' + esc(t.name) + "</span>"
         + '<span class="badge ' + (buy ? "b-buy" : "b-sell") + '">' + (buy ? "▲ MUA" : "▼ BÁN") + "</span>"
         + '<span class="badge s-' + esc(t.status) + '">' + (STATUS[t.status] || esc(t.status)) + "</span>"
+        + (t.status === "CHO" && t.hold ? '<span class="badge s-HOLD">⏸ TẠM HỦY</span>' : "")
         + (t.dca ? '<span class="badge s-HUY">DCA x' + t.dca + "</span>" : "") + "</div>"
         + '<div class="when">' + when + "</div></div>" + res
         + '<div class="levels"><div class="lv"><small>Giá vào</small><b>' + num(t.entry) + '</b></div><div class="lv"><small>Chốt lời</small><b style="color:var(--win)">' + num(t.tp)
@@ -339,10 +342,16 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
     var p = function (x) { return (x < 10 ? "0" : "") + x; };
     return (d ? d + "n " : "") + p(h) + ":" + p(m) + ":" + p(s2);
   }
+  // Leo 06/11: why the order is not on the exchange right now and when it comes back.
+  function holdLine(t) {
+    if (t.hold === "TIN") return '<div class="hold">⏸ Tạm hủy trên sàn vì giờ tin · ' + (t.holdUntil ? "đặt lại lúc <b>" + vn(t.holdUntil) + "</b>" : "đặt lại khi hết giờ tin") + " (nếu còn hạn)</div>";
+    if (t.hold === "DCA") return '<div class="hold">⏸ Tạm hủy trên sàn để lấy vốn DCA · đặt lại khi lệnh DCA đóng (nếu còn hạn)</div>';
+    return "";
+  }
   function waitBox(t) {
-    if (!t.expiresAt) return '<div class="pend"><div><small>Hết hạn</small><div class="wl">Chờ tới khi khớp</div></div></div>';
+    if (!t.expiresAt) return '<div class="pend">' + holdLine(t) + '<div><small>Hết hạn</small><div class="wl">Chờ tới khi khớp</div></div></div>';
     var left = (t.expiresAt - Date.now()) / 1000, all = Math.max(1, (t.expiresAt - t.signalAt) / 1000);
-    return '<div class="pend"><div><small>Còn lại để khớp</small><div class="cd' + (left < 1800 ? " soon" : "") + '" data-exp="' + t.expiresAt + '">' + hms(left) + "</div></div>"
+    return '<div class="pend">' + holdLine(t) + '<div><small>Còn lại để khớp</small><div class="cd' + (left < 1800 ? " soon" : "") + '" data-exp="' + t.expiresAt + '">' + hms(left) + "</div></div>"
       + '<div><small>Hết hạn lúc</small><div class="wl">' + vn(t.expiresAt) + "</div></div>"
       + '<div class="pb"><i data-from="' + t.signalAt + '" data-exp="' + t.expiresAt + '" style="width:' + Math.min(100, Math.max(0, 100 - left / all * 100)) + '%"></i></div></div>';
   }

@@ -183,6 +183,32 @@ header .tick{margin-left:auto}
 .res{font-family:"JetBrains Mono",monospace;font-weight:700;text-align:right}
 .res.up{color:var(--win)}.res.down{color:var(--loss)}
 .when{color:var(--muted);font-size:12px}
+/* Leo 06/11: history grouped by VN day, one compact row per trade */
+.day{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.day>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:12px 14px}
+.day>summary::-webkit-details-marker{display:none}
+.day>summary .dt{font-weight:800;font-size:14px;display:flex;align-items:center;gap:8px}
+.day>summary .dt:before{content:"▸";color:var(--muted);transition:transform .15s;display:inline-block}
+.day[open]>summary .dt:before{transform:rotate(90deg)}
+.day>summary .cnt{color:var(--muted);font-size:12px;margin:2px 0 0 18px}
+.day>summary .cnt b.w{color:var(--win)}.day>summary .cnt b.l{color:var(--loss)}
+.day>summary .sum{margin-left:auto;font-family:"JetBrains Mono",monospace;font-weight:700;font-size:14px;text-align:right}
+.day>summary .sum.up{color:var(--win)}.day>summary .sum.down{color:var(--loss)}
+.day>summary .sum small{display:block;font-size:11px;opacity:.85}
+.rows{border-top:1px solid var(--line)}
+.row{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:10px 14px;border-top:1px solid rgba(28,42,63,.55)}
+.row:first-child{border-top:0}
+.row .tm{font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--text);line-height:1.25}
+.row .tm small{display:block;color:var(--muted);font-size:11px}
+.row .mid{min-width:0}
+.row .mid .top{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.row .px2{font-family:"JetBrains Mono",monospace;font-size:13px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .px2 i{font-style:normal;color:var(--muted)}
+.row .lvl{color:var(--muted);font-size:11px;margin-top:2px}
+.row .res{font-size:14px}
+.row .res small{display:block;font-size:11px}
+.row.dim{opacity:.7}
+@media (max-width:520px){.row{grid-template-columns:44px minmax(0,1fr) auto;padding:10px 12px}.row .lvl{display:none}}
 .empty{color:var(--muted);text-align:center;padding:26px;border:1px dashed var(--line);border-radius:14px}
 footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
 .gold{color:var(--gold)}.silver{color:var(--silver)}.oil{color:var(--oil)}
@@ -310,6 +336,7 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
       document.getElementById("list").innerHTML = '<div class="empty">' + (tab === "open" ? "Hiện chưa có lệnh đang chạy hay lệnh chờ." : "Chưa có lệnh nào trong lịch sử.") + "</div>";
       return;
     }
+    if (tab === "hist") { document.getElementById("list").innerHTML = histHtml(trades); return; }
     document.getElementById("list").innerHTML = trades.map(function (t) {
       var buy = t.side === "MUA", res = "", lp = livePnl(t);
       if (lp) res = '<div class="res ' + (lp.move >= 0 ? "up" : "down") + '"><div class="livepnl">tạm tính</div>' + (lp.move >= 0 ? "+" : "") + num(lp.move)
@@ -335,6 +362,63 @@ footer{color:#5b6f8a;font-size:12px;margin-top:26px;text-align:center}
 
 
 
+
+  // ---- Leo 06/11: history grouped by VN day (newest day open, the rest folded; what the viewer opens stays open) ----
+  var dayOpen = {}, WD = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+  function vnKey(ms) { return new Date(ms + 7 * 3600e3).toISOString().slice(0, 10); }
+  function hm(ms) { return ms ? new Date(ms + 7 * 3600e3).toISOString().slice(11, 16) : ""; }
+  function dayLabel(key) {
+    var today = vnKey(Date.now()), y = vnKey(Date.now() - 864e5), d = new Date(key + "T00:00:00Z");
+    var dm = key.slice(8, 10) + "/" + key.slice(5, 7);
+    return (key === today ? "Hôm nay" : key === y ? "Hôm qua" : WD[d.getUTCDay()]) + " · " + dm;
+  }
+  function sign(v, d) { return (v >= 0 ? "+" : "") + num(v, d); }
+  function histRow(t) {
+    var buy = t.side === "MUA", miss = t.status === "HH" || t.status === "HUY";
+    var t1 = miss ? hm(t.signalAt) : hm(t.fillAt || t.signalAt), t2 = miss ? hm(t.closedAt) : hm(t.closedAt);
+    var res = "";
+    if (t.move != null) res = '<div class="res ' + (t.move >= 0 ? "up" : "down") + '">' + sign(t.move)
+      + (t.pnlPct != null ? "<small>" + sign(t.pnlPct, 1) + "%</small>" : "")
+      + (state.showUsd && t.netUsd != null ? "<small>" + sign(t.netUsd, 2) + "$</small>" : "") + "</div>";
+    else res = '<div class="res" style="color:var(--muted)">–</div>';
+    var px = miss ? "<i>chờ</i> " + num(t.entry) + " <i>· không khớp</i>"
+      : num(t.entry) + " <i>→</i> " + (t.exit != null ? num(t.exit) : "–");
+    return '<div class="row' + (miss ? " dim" : "") + '"><div class="tm">' + t1 + (t2 && t2 !== t1 ? "<small>" + t2 + "</small>" : "") + "</div>"
+      + '<div class="mid"><div class="top"><span class="badge ' + (buy ? "b-buy" : "b-sell") + '">' + (buy ? "▲ MUA" : "▼ BÁN") + "</span>"
+      + '<span class="badge s-' + esc(t.status) + '">' + (STATUS[t.status] || esc(t.status)) + "</span>"
+      + (t.dca ? '<span class="badge s-HUY">DCA x' + t.dca + "</span>" : "")
+      + (filter === "ALL" && t.metal !== "GOLD" ? '<span class="name ' + cls(t.metal) + '" style="font-size:12px">' + esc(t.name) + "</span>" : "") + "</div>"
+      + '<div class="px2">' + px + "</div>"
+      + '<div class="lvl">TP <span style="color:var(--win)">' + num(t.tp) + '</span> · SL <span style="color:var(--loss)">' + num(t.sl) + "</span></div></div>"
+      + res + "</div>";
+  }
+  function histHtml(trades) {
+    var groups = [], by = {};
+    trades.forEach(function (t) {
+      var k = vnKey(t.closedAt || t.fillAt || t.signalAt || 0);
+      if (!by[k]) { by[k] = []; groups.push(k); }
+      by[k].push(t);
+    });
+    groups.sort().reverse();
+    return groups.map(function (k, i) {
+      var list = by[k].slice().sort(function (a, b) { return (b.closedAt || b.fillAt || b.signalAt || 0) - (a.closedAt || a.fillAt || a.signalAt || 0); });
+      var win = 0, loss = 0, miss = 0, mv = 0, usd = 0, hasUsd = false;
+      list.forEach(function (t) {
+        if (t.status === "HH" || t.status === "HUY") { miss++; return; }
+        if (t.move != null) { mv += t.move; if (t.move > 0) win++; else if (t.move < 0) loss++; }
+        if (t.netUsd != null) { usd += t.netUsd; hasUsd = true; }
+      });
+      var open = dayOpen[k] != null ? dayOpen[k] : i === 0;
+      var cnt = [win ? '<b class="w">' + win + " thắng</b>" : "", loss ? '<b class="l">' + loss + " thua</b>" : "", miss ? miss + " không khớp" : ""].filter(Boolean).join(" · ");
+      var sum = win + loss ? '<div class="sum ' + (mv >= 0 ? "up" : "down") + '">' + sign(mv) + (state.showUsd && hasUsd ? "<small>" + sign(usd, 2) + "$</small>" : "") + "</div>" : "";
+      return '<details class="day" data-day="' + k + '"' + (open ? " open" : "") + '><summary><div><div class="dt">' + dayLabel(k) + '</div><div class="cnt">' + cnt + "</div></div>" + sum + "</summary>"
+        + '<div class="rows">' + list.map(histRow).join("") + "</div></details>";
+    }).join("");
+  }
+  document.addEventListener("toggle", function (e) {
+    var el = e.target;
+    if (el && el.classList && el.classList.contains("day")) dayOpen[el.dataset.day] = el.open;
+  }, true);
 
   // ---- Leo 05/11: pending order countdown to its deadline ----
   function hms(sec) {

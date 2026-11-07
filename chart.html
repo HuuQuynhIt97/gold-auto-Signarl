@@ -50,8 +50,7 @@ h1 .px{font-family:"JetBrains Mono",monospace;color:var(--text)}
 (function () {
   "use strict";
   var DB = (window.CW_DB_URL || "").replace(/\/+$/, ""), NODE = "cyberwhale";
-  var API = "https://open-api.bingx.com/openApi/swap/v3/quote/klines";
-  var SYMS = ["NCCOGOLD2USD-USDT", "NCCOXAU2USD-USDT"], sym = null, iv = "30m";
+  var iv = "30m";
   var STEP = {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400};
   var st = document.getElementById("st");
   var el = document.getElementById("chart");
@@ -77,27 +76,31 @@ h1 .px{font-family:"JetBrains Mono",monospace;color:var(--text)}
       return {time: vnSec(+(a ? k[0] : k.time)), open: +(a ? k[1] : k.open), high: +(a ? k[2] : k.high), low: +(a ? k[3] : k.low), close: +(a ? k[4] : k.close)};
     }).sort(function (x, y) { return x.time - y.time; }).filter(function (b, i, s) { return !i || b.time !== s[i - 1].time; });
   }
-  function get(s, limit) {
-    return fetch(API + "?symbol=" + encodeURIComponent(s) + "&interval=" + iv + "&limit=" + limit, {cache: "no-store"})
-      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then(function (j) { if (j && j.code && j.code !== 0) throw new Error(j.msg || ("mã lỗi " + j.code)); return rows(j); });
-  }
+  // Leo 07/11: BingX blocks the browser, so the bot pushes closed candles to Firebase (candles/<tf>) and the live price
+  // (price.GOLD, every ~3 s) builds the candle that is still open.
+  var live = null;
   function load() {
     st.innerHTML = "Đang tải nến " + iv + "…";
-    var list = sym ? [sym] : SYMS.slice(), errs = [];
-    (function next() {
-      var s = list.shift();
-      if (!s) { st.innerHTML = "❌ <b>Không lấy được nến từ BingX</b> (" + errs.join("; ") + "). Có thể BingX chặn trình duyệt lấy dữ liệu trực tiếp."; return; }
-      get(s, 500).then(function (bars) {
-        if (!bars.length) throw new Error("không có nến");
-        sym = s; lastBars = bars; series.setData(bars); draw();
-        st.innerHTML = "✅ <b>Lấy nến trực tiếp từ BingX được</b> (" + s + ", " + bars.length + " nến " + iv + "). Giờ trên trục là giờ VN.";
-      }).catch(function (e) { errs.push(s + ": " + (e.message === "Failed to fetch" ? "bị chặn" : e.message)); next(); });
-    })();
+    fetch(DB + "/" + NODE + "/candles/" + iv + ".json", {cache: "no-store"}).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d || !d.bars || !d.bars.length) { st.innerHTML = "❌ <b>Chưa có nến " + iv + "</b>: bot chưa đẩy nến lên (cần bản bot mới có đẩy nến, và đang bật trang tín hiệu)."; series.setData([]); lastBars = []; return; }
+      lastBars = rows(d.bars); live = null; series.setData(lastBars); draw();
+      st.innerHTML = "✅ <b>" + lastBars.length + " nến " + iv + "</b> từ bot · cập nhật " + new Date(d.at).toLocaleTimeString("vi-VN", {timeZone: "Asia/Ho_Chi_Minh"}) + ". Giờ trên trục là giờ VN.";
+    }).catch(function (e) { st.innerHTML = "❌ Không đọc được nến (" + e.message + ")."; });
   }
   function tick() {
-    if (!sym) return;
-    get(sym, 2).then(function (bars) { bars.forEach(function (b) { series.update(b); }); if (bars.length) document.getElementById("px").textContent = bars[bars.length - 1].close.toFixed(2); }).catch(function () {});
+    fetch(DB + "/" + NODE + "/price.json", {cache: "no-store"}).then(function (r) { return r.json(); }).then(function (p) {
+      if (!p || !p.GOLD || !lastBars.length) return;
+      var px = +p.GOLD, s = STEP[iv], t = Math.floor(vnSec(p.at || Date.now()) / s) * s, last = lastBars[lastBars.length - 1];
+      document.getElementById("px").textContent = px.toFixed(2);
+      if (t < last.time) return;
+      if (t === last.time) { last = {time: t, open: last.open, high: Math.max(last.high, px), low: Math.min(last.low, px), close: px}; lastBars[lastBars.length - 1] = last; series.update(last); return; }
+      // A new candle: a closed one went past the newest pushed candle, reload once the bot has pushed it.
+      if (live && t > live.time) setTimeout(load, 20000);
+      var o = live ? (live.time === t ? live.open : live.close) : last.close;
+      live = live && live.time === t ? {time: t, open: o, high: Math.max(live.high, px), low: Math.min(live.low, px), close: px}
+        : {time: t, open: o, high: Math.max(o, px), low: Math.min(o, px), close: px};
+      series.update(live);
+    }).catch(function () {});
   }
 
   // Trades from the bot (same data as the signal page): lines for the open ones, markers for fills / closes.

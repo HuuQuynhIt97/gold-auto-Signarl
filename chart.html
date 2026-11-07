@@ -23,13 +23,28 @@ h1 .px{font-family:"JetBrains Mono",monospace;color:var(--text)}
 #chart{height:min(70vh,560px);border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel)}
 #st{color:var(--muted);font-size:13px;margin-top:10px;line-height:1.5}
 #st b{color:var(--text)}
+#login{max-width:360px;margin:12vh auto 0;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px}
+#login h2{font-size:17px;color:var(--gold);margin-bottom:14px}
+#login label{display:block;color:var(--muted);font-size:12px;margin:10px 0 4px}
+#login input{width:100%;background:#0a111c;border:1px solid var(--line);border-radius:9px;color:var(--text);padding:10px;font-size:14px}
+#login button{width:100%;margin-top:16px;background:var(--gold);color:#0b1220;border:0;border-radius:9px;padding:11px;font-weight:800;font-size:14px;cursor:pointer}
+#login .err{color:var(--loss);font-size:13px;margin-top:10px;min-height:18px}
+#out{margin-left:auto;background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:9px;padding:6px 10px;font-size:12px;cursor:pointer}
 .legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin-top:8px}
 .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>VÀNG · BINGX <span class="px" id="px">–</span></h1>
+<form id="login" hidden>
+  <h2>🔒 Đăng nhập xem biểu đồ</h2>
+  <div id="keyRow"><label for="key">Web API Key (Firebase → Project settings, chỉ nhập lần đầu)</label><input id="key" autocomplete="off"></div>
+  <label for="em">Email</label><input id="em" type="email" autocomplete="username" required>
+  <label for="pw">Mật khẩu</label><input id="pw" type="password" autocomplete="current-password" required>
+  <button type="submit">Đăng nhập</button>
+  <div class="err" id="lerr"></div>
+</form>
+<div class="wrap" id="app" hidden>
+  <h1>VÀNG · BINGX <span class="px" id="px">–</span><button id="out" type="button">Đăng xuất</button></h1>
   <div class="bar" id="tf">
     <button class="chip" data-i="5m">5m</button>
     <button class="chip" data-i="15m">15m</button>
@@ -51,6 +66,43 @@ h1 .px{font-family:"JetBrains Mono",monospace;color:var(--text)}
   "use strict";
   var DB = (window.CW_DB_URL || "").replace(/\/+$/, ""), NODE = "cyberwhale";
   var iv = "30m";
+  // Leo 07/11: only Leo reads the candles (private/ node, Firebase Rules: his login only). The sign-in is kept in this
+  // browser (refresh token); "Đăng xuất" forgets it.
+  function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
+  var KEY = ls("cw_key") || "", REFRESH = ls("cw_rt") || "", TOKEN = "", TOKEN_UNTIL = 0;
+  function signedIn(j) {
+    TOKEN = j.idToken || j.id_token; TOKEN_UNTIL = Date.now() + (+(j.expiresIn || j.expires_in || 3600) - 120) * 1000;
+    REFRESH = j.refreshToken || j.refresh_token || REFRESH; ls("cw_rt", REFRESH);
+  }
+  function token() {
+    if (TOKEN && Date.now() < TOKEN_UNTIL) return Promise.resolve(TOKEN);
+    if (!REFRESH || !KEY) return Promise.reject(new Error("login"));
+    return fetch("https://securetoken.googleapis.com/v1/token?key=" + encodeURIComponent(KEY), {method: "POST",
+      headers: {"Content-Type": "application/x-www-form-urlencoded"}, body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(REFRESH)})
+      .then(function (r) { return r.json(); }).then(function (j) { if (!j.id_token) throw new Error("login"); signedIn(j); return TOKEN; });
+  }
+  function priv(path) {
+    return token().then(function (t) { return fetch(DB + "/private/" + path + ".json?auth=" + encodeURIComponent(t), {cache: "no-store"}); })
+      .then(function (r) { if (r.status === 401) { TOKEN = ""; throw new Error("Tài khoản này không có quyền xem"); } return r.json(); });
+  }
+  function showLogin(msg) {
+    document.getElementById("app").hidden = true; document.getElementById("login").hidden = false;
+    document.getElementById("keyRow").hidden = !!KEY; document.getElementById("lerr").textContent = msg || "";
+  }
+  var started = false;
+  function showApp() { document.getElementById("login").hidden = true; document.getElementById("app").hidden = false; if (!started) { started = true; start(); } }
+  document.getElementById("login").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var k = document.getElementById("key").value.trim(); if (k) KEY = k;
+    var err = document.getElementById("lerr"); err.textContent = "Đang đăng nhập…";
+    fetch("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=" + encodeURIComponent(KEY), {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({email: document.getElementById("em").value.trim(), password: document.getElementById("pw").value, returnSecureToken: true})})
+      .then(function (r) { return r.json(); }).then(function (j) {
+        if (!j.idToken) { var m = j.error && j.error.message || ""; err.textContent = /API_KEY|API key/i.test(m) ? "Web API Key sai." : /PASSWORD|EMAIL|CREDENTIAL|USER/i.test(m) ? "Sai email hoặc mật khẩu." : "Không đăng nhập được (" + m + ")."; if (/API_KEY|API key/i.test(m)) { KEY = ""; ls("cw_key", null); } return; }
+        ls("cw_key", KEY); signedIn(j); document.getElementById("pw").value = ""; showApp();
+      }).catch(function (x) { err.textContent = "Lỗi mạng: " + x.message; });
+  });
+  document.getElementById("out").addEventListener("click", function () { REFRESH = ""; TOKEN = ""; ls("cw_rt", null); location.reload(); });
   var STEP = {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400};
   var st = document.getElementById("st");
   var el = document.getElementById("chart");
@@ -81,11 +133,11 @@ h1 .px{font-family:"JetBrains Mono",monospace;color:var(--text)}
   var live = null;
   function load() {
     st.innerHTML = "Đang tải nến " + iv + "…";
-    fetch(DB + "/" + NODE + "/candles/" + iv + ".json", {cache: "no-store"}).then(function (r) { return r.json(); }).then(function (d) {
+    priv("candles/" + iv).then(function (d) {
       if (!d || !d.bars || !d.bars.length) { st.innerHTML = "❌ <b>Chưa có nến " + iv + "</b>: bot chưa đẩy nến lên (cần bản bot mới có đẩy nến, và đang bật trang tín hiệu)."; series.setData([]); lastBars = []; return; }
       lastBars = rows(d.bars); live = null; series.setData(lastBars); draw();
       st.innerHTML = "✅ <b>" + lastBars.length + " nến " + iv + "</b> từ bot · cập nhật " + new Date(d.at).toLocaleTimeString("vi-VN", {timeZone: "Asia/Ho_Chi_Minh"}) + ". Giờ trên trục là giờ VN.";
-    }).catch(function (e) { st.innerHTML = "❌ Không đọc được nến (" + e.message + ")."; });
+    }).catch(function (e) { if (e.message === "login") { showLogin("Phiên đăng nhập hết hạn, đăng nhập lại."); return; } st.innerHTML = "❌ Không đọc được nến (" + e.message + ")."; });
   }
   function tick() {
     fetch(DB + "/" + NODE + "/price.json", {cache: "no-store"}).then(function (r) { return r.json(); }).then(function (p) {
@@ -138,9 +190,12 @@ h1 .px{font-family:"JetBrains Mono",monospace;color:var(--text)}
     document.querySelectorAll("#tf .chip").forEach(function (x) { x.classList.toggle("on", x === b); });
     iv = b.dataset.i; load();
   });
-  load(); loadTrades();
-  setInterval(tick, 3000);
-  setInterval(loadTrades, 15000);
+  function start() {
+    load(); loadTrades();
+    setInterval(tick, 3000);
+    setInterval(loadTrades, 15000);
+  }
+  if (REFRESH && KEY) token().then(showApp, function () { showLogin(); }); else showLogin();
 })();
 </script>
 </body>

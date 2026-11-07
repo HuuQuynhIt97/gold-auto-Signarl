@@ -20,7 +20,7 @@ h1 .px{font-family:"JetBrains Mono",monospace;color:var(--text)}
 .bar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
 .chip{background:var(--panel);border:1px solid var(--line);color:var(--muted);padding:7px 12px;border-radius:9px;font-weight:700;font-size:13px;cursor:pointer}
 .chip.on{background:var(--gold);color:#0b1220;border-color:var(--gold)}
-#chart{height:min(70vh,560px);border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel)}
+#chart{position:relative;height:min(70vh,560px);border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel)}
 #st{color:var(--muted);font-size:13px;margin-top:10px;line-height:1.5}
 #st b{color:var(--text)}
 #login{max-width:360px;margin:12vh auto 0;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px}
@@ -58,6 +58,8 @@ h1 .px{font-family:"JetBrains Mono",monospace;color:var(--text)}
     <span><i style="background:var(--win)"></i>Chốt lời</span>
     <span><i style="background:var(--loss)"></i>Cắt lỗ</span>
     <span>▲▼ khớp lệnh · ● đóng lệnh</span>
+    <span><i style="background:rgba(245,196,81,.6);height:9px"></i>Vùng FVG</span>
+    <span><i style="background:rgba(190,102,242,.6);height:9px"></i>Order Block</span>
   </div>
   <div id="st">Đang tải nến…</div>
 </div>
@@ -153,6 +155,7 @@ h1 .px{font-family:"JetBrains Mono",monospace;color:var(--text)}
       live = live && live.time === t ? {time: t, open: o, high: Math.max(live.high, px), low: Math.min(live.low, px), close: px}
         : {time: t, open: o, high: Math.max(o, px), low: Math.min(o, px), close: px};
       series.update(live);
+      requestAnimationFrame(drawZones);
     }).catch(function () {});
   }
 
@@ -179,7 +182,61 @@ h1 .px{font-family:"JetBrains Mono",monospace;color:var(--text)}
     });
     mk.sort(function (a, b) { return a.time - b.time; });
     series.setMarkers(mk);
+    requestAnimationFrame(drawZones);
   }
+  // ---- Leo 07/11: the strategy's zones (private/analysis, login only) drawn on a canvas over the chart ----
+  var zones = [], cv = document.createElement("canvas");
+  cv.style.cssText = "position:absolute;left:0;top:0;pointer-events:none;z-index:3";
+  el.appendChild(cv);
+  var TF = {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400};
+  function xAt(t) {
+    // t = VN seconds; the coordinate of the bar that holds it (null before the data, right edge after it).
+    if (!lastBars.length) return null;
+    var s = STEP[iv], b = Math.floor(t / s) * s, ts = chart.timeScale();
+    if (b < lastBars[0].time) return null;
+    var x = ts.timeToCoordinate(b);
+    if (x == null) { var lr = ts.logicalToCoordinate(lastBars.length - 1 + (b - lastBars[lastBars.length - 1].time) / s); x = lr; }
+    return x;
+  }
+  function drawZones() {
+    var w = el.clientWidth, h = el.clientHeight, dpr = window.devicePixelRatio || 1;
+    if (cv.width !== w * dpr || cv.height !== h * dpr) { cv.width = w * dpr; cv.height = h * dpr; cv.style.width = w + "px"; cv.style.height = h + "px"; }
+    var g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    if (!lastBars.length || !zones.length) return;
+    var plotW = w - chart.priceScale("right").width(), plotH = h - chart.timeScale().height();
+    g.save(); g.beginPath(); g.rect(0, 0, plotW, plotH); g.clip();
+    g.font = "600 10px 'Plus Jakarta Sans', sans-serif";
+    zones.forEach(function (z) {
+      var step = TF[z.tf] || 1800, alert = vnSec(z.alertAt), c1 = alert - 3 * step;
+      var endMs = z.closedAt || (z.status === "EXPIRED" || z.status === "CANCELLED" ? z.alertAt : 0);
+      var x1 = xAt(c1), x2 = endMs ? xAt(vnSec(endMs) + STEP[iv]) : plotW;
+      if (x1 == null || x2 == null || x2 < 0 || x1 > plotW) return;
+      function box(xa, lo, hi, rgb, name) {
+        var ya = series.priceToCoordinate(hi), yb = series.priceToCoordinate(lo);
+        if (ya == null || yb == null) return;
+        g.fillStyle = "rgba(" + rgb + ",.16)"; g.strokeStyle = "rgba(" + rgb + ",.85)"; g.setLineDash([4, 3]); g.lineWidth = 1;
+        g.fillRect(xa, ya, Math.max(2, x2 - xa), Math.max(1, yb - ya)); g.strokeRect(xa, ya, Math.max(2, x2 - xa), Math.max(1, yb - ya));
+        g.setLineDash([]); g.fillStyle = "rgba(" + rgb + ",1)"; g.fillText(name, xa + 4, ya + 11);
+      }
+      if (z.obHi && z.obLo) {
+        // The Order Block candle: the last one before the impulse with these wicks (exact on the strategy's timeframe).
+        var ob = c1 - step;
+        if (z.tf === iv) for (var i = lastBars.length - 1; i >= 0; i--) {
+          var b = lastBars[i]; if (b.time >= c1) continue; if (b.time < c1 - 8 * step) break;
+          if (Math.abs(b.high - z.obHi) < 0.02 && Math.abs(b.low - z.obLo) < 0.02) { ob = b.time; break; }
+        }
+        var xo = xAt(ob); box(xo == null ? x1 : xo, z.obLo, z.obHi, "190,102,242", "ORDER BLOCK");
+      }
+      box(x1, z.fvgLo, z.fvgHi, "245,196,81", "FVG " + (z.side === "MUA" ? "tăng" : "giảm") + (z.real ? "" : " · paper"));
+    });
+    g.restore();
+  }
+  chart.timeScale().subscribeVisibleLogicalRangeChange(function () { requestAnimationFrame(drawZones); });
+  new ResizeObserver(function () { requestAnimationFrame(drawZones); }).observe(el);
+  function loadZones() {
+    priv("analysis").then(function (d) { zones = d && d.trades ? (Array.isArray(d.trades) ? d.trades : Object.values(d.trades)) : []; drawZones(); }).catch(function () {});
+  }
+
   function loadTrades() {
     if (!DB) return;
     fetch(DB + "/" + NODE + "/trades.json", {cache: "no-store"}).then(function (r) { return r.json(); })
@@ -192,9 +249,10 @@ h1 .px{font-family:"JetBrains Mono",monospace;color:var(--text)}
     iv = b.dataset.i; load();
   });
   function start() {
-    load(); loadTrades();
+    load(); loadTrades(); loadZones();
     setInterval(tick, 3000);
     setInterval(loadTrades, 15000);
+    setInterval(loadZones, 30000);
   }
   if (REFRESH && KEY) token().then(showApp, function () { showLogin(); }); else showLogin();
 })();

@@ -69,7 +69,8 @@ h1 .px{font-family:"JetBrains Mono",monospace;color:var(--text)}
   // Leo 07/11: only Leo reads the candles (private/ node, Firebase Rules: his login only). The sign-in is kept in this
   // browser (refresh token); "Đăng xuất" forgets it.
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
-  var KEY = ls("cw_key") || "", REFRESH = ls("cw_rt") || "", TOKEN = "", TOKEN_UNTIL = 0;
+  // The project's Web API Key: public by design (it only names the project); Rules + the login guard the data.
+  var KEY = ls("cw_key") || "AIzaSyCAVLJWC65TP2eOvei6nxqirjwc_RXD9rY", REFRESH = ls("cw_rt") || "", TOKEN = "", TOKEN_UNTIL = 0;
   function signedIn(j) {
     TOKEN = j.idToken || j.id_token; TOKEN_UNTIL = Date.now() + (+(j.expiresIn || j.expires_in || 3600) - 120) * 1000;
     REFRESH = j.refreshToken || j.refresh_token || REFRESH; ls("cw_rt", REFRESH);
@@ -98,7 +99,7 @@ h1 .px{font-family:"JetBrains Mono",monospace;color:var(--text)}
     fetch("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=" + encodeURIComponent(KEY), {method: "POST",
       headers: {"Content-Type": "application/json"}, body: JSON.stringify({email: document.getElementById("em").value.trim(), password: document.getElementById("pw").value, returnSecureToken: true})})
       .then(function (r) { return r.json(); }).then(function (j) {
-        if (!j.idToken) { var m = j.error && j.error.message || ""; err.textContent = /API_KEY|API key/i.test(m) ? "Web API Key sai." : /PASSWORD|EMAIL|CREDENTIAL|USER/i.test(m) ? "Sai email hoặc mật khẩu." : "Không đăng nhập được (" + m + ")."; if (/API_KEY|API key/i.test(m)) { KEY = ""; ls("cw_key", null); } return; }
+        if (!j.idToken) { var m = j.error && j.error.message || ""; err.textContent = /API_KEY|API key/i.test(m) ? "Web API Key sai." : /PASSWORD|EMAIL|CREDENTIAL|USER/i.test(m) ? "Sai email hoặc mật khẩu." : "Không đăng nhập được (" + m + ")."; if (/API_KEY|API key/i.test(m)) { KEY = ""; ls("cw_key", null); document.getElementById("keyRow").hidden = false; } return; }
         ls("cw_key", KEY); signedIn(j); document.getElementById("pw").value = ""; showApp();
       }).catch(function (x) { err.textContent = "Lỗi mạng: " + x.message; });
   });

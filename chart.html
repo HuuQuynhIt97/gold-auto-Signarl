@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Biểu đồ Vàng</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script>
+  window.CW_DB_URL = "https://my-project-gold-bce37-default-rtdb.asia-southeast1.firebasedatabase.app";
+</script>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+:root{--bg:#070b12;--panel:#0d1420;--line:#1c2a3f;--text:#e6eef8;--muted:#7f93ad;--gold:#f5c451;--win:#12d18e;--loss:#ff5d73;--wait:#f0b44c;--run:#38bdf8}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:"Plus Jakarta Sans",system-ui,sans-serif;min-height:100vh}
+.wrap{max-width:1100px;margin:0 auto;padding:16px}
+h1{font-size:18px;font-weight:800;color:var(--gold);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+h1 .px{font-family:"JetBrains Mono",monospace;color:var(--text)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.chip{background:var(--panel);border:1px solid var(--line);color:var(--muted);padding:7px 12px;border-radius:9px;font-weight:700;font-size:13px;cursor:pointer}
+.chip.on{background:var(--gold);color:#0b1220;border-color:var(--gold)}
+#chart{height:min(70vh,560px);border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel)}
+#st{color:var(--muted);font-size:13px;margin-top:10px;line-height:1.5}
+#st b{color:var(--text)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin-top:8px}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>VÀNG · BINGX <span class="px" id="px">–</span></h1>
+  <div class="bar" id="tf">
+    <button class="chip" data-i="5m">5m</button>
+    <button class="chip" data-i="15m">15m</button>
+    <button class="chip on" data-i="30m">30m</button>
+    <button class="chip" data-i="1h">1h</button>
+    <button class="chip" data-i="4h">4h</button>
+  </div>
+  <div id="chart"></div>
+  <div class="legend">
+    <span><i style="background:#e6eef8"></i>Giá vào</span>
+    <span><i style="background:var(--win)"></i>Chốt lời</span>
+    <span><i style="background:var(--loss)"></i>Cắt lỗ</span>
+    <span>▲▼ khớp lệnh · ● đóng lệnh</span>
+  </div>
+  <div id="st">Đang tải nến…</div>
+</div>
+<script>
+(function () {
+  "use strict";
+  var DB = (window.CW_DB_URL || "").replace(/\/+$/, ""), NODE = "cyberwhale";
+  var API = "https://open-api.bingx.com/openApi/swap/v3/quote/klines";
+  var SYMS = ["NCCOGOLD2USD-USDT", "NCCOXAU2USD-USDT"], sym = null, iv = "30m";
+  var STEP = {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400};
+  var st = document.getElementById("st");
+  var el = document.getElementById("chart");
+  var chart = LightweightCharts.createChart(el, {
+    autoSize: true,
+    layout: {background: {color: "#0d1420"}, textColor: "#7f93ad", fontFamily: "JetBrains Mono, monospace"},
+    grid: {vertLines: {color: "#132033"}, horzLines: {color: "#132033"}},
+    rightPriceScale: {borderColor: "#1c2a3f"},
+    timeScale: {borderColor: "#1c2a3f", timeVisible: true, secondsVisible: false},
+    crosshair: {mode: 0},
+    localization: {locale: "en-US", timeFormatter: function (t) { return new Date(t * 1000 + 7 * 3600e3).toISOString().slice(5, 16).replace("T", " "); }}
+  });
+  var series = chart.addCandlestickSeries({upColor: "#12d18e", downColor: "#ff5d73", borderVisible: false, wickUpColor: "#12d18e", wickDownColor: "#ff5d73", priceFormat: {type: "price", precision: 2, minMove: 0.01}});
+  var lines = [], trades = [], lastBars = [];
+
+  // VN time on the axis: shift the UTC seconds by +7 h.
+  function vnSec(ms) { return Math.floor(ms / 1000) + 7 * 3600; }
+  function rows(j) {
+    var d = j && (j.data || j);
+    if (!Array.isArray(d)) throw new Error((j && (j.msg || j.message)) || "dữ liệu lạ");
+    return d.map(function (k) {
+      var a = Array.isArray(k);
+      return {time: vnSec(+(a ? k[0] : k.time)), open: +(a ? k[1] : k.open), high: +(a ? k[2] : k.high), low: +(a ? k[3] : k.low), close: +(a ? k[4] : k.close)};
+    }).sort(function (x, y) { return x.time - y.time; }).filter(function (b, i, s) { return !i || b.time !== s[i - 1].time; });
+  }
+  function get(s, limit) {
+    return fetch(API + "?symbol=" + encodeURIComponent(s) + "&interval=" + iv + "&limit=" + limit, {cache: "no-store"})
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (j) { if (j && j.code && j.code !== 0) throw new Error(j.msg || ("mã lỗi " + j.code)); return rows(j); });
+  }
+  function load() {
+    st.innerHTML = "Đang tải nến " + iv + "…";
+    var list = sym ? [sym] : SYMS.slice(), errs = [];
+    (function next() {
+      var s = list.shift();
+      if (!s) { st.innerHTML = "❌ <b>Không lấy được nến từ BingX</b> (" + errs.join("; ") + "). Có thể BingX chặn trình duyệt lấy dữ liệu trực tiếp."; return; }
+      get(s, 500).then(function (bars) {
+        if (!bars.length) throw new Error("không có nến");
+        sym = s; lastBars = bars; series.setData(bars); draw();
+        st.innerHTML = "✅ <b>Lấy nến trực tiếp từ BingX được</b> (" + s + ", " + bars.length + " nến " + iv + "). Giờ trên trục là giờ VN.";
+      }).catch(function (e) { errs.push(s + ": " + (e.message === "Failed to fetch" ? "bị chặn" : e.message)); next(); });
+    })();
+  }
+  function tick() {
+    if (!sym) return;
+    get(sym, 2).then(function (bars) { bars.forEach(function (b) { series.update(b); }); if (bars.length) document.getElementById("px").textContent = bars[bars.length - 1].close.toFixed(2); }).catch(function () {});
+  }
+
+  // Trades from the bot (same data as the signal page): lines for the open ones, markers for fills / closes.
+  function snap(t) { var s = STEP[iv]; return Math.floor(vnSec(t) / s) * s; }
+  function draw() {
+    lines.forEach(function (l) { series.removePriceLine(l); }); lines = [];
+    var mk = [], first = lastBars.length ? lastBars[0].time : 0;
+    trades.forEach(function (t) {
+      if (!t || t.metal && t.metal !== "GOLD") return;
+      var buy = t.side === "MUA", live = t.status === "CHAY" || t.status === "CHO";
+      if (live) {
+        var tag = (buy ? "MUA" : "BÁN") + (t.status === "CHO" ? " chờ" : "");
+        lines.push(series.createPriceLine({price: +t.entry, color: "#e6eef8", lineWidth: 1, lineStyle: t.status === "CHO" ? 2 : 0, axisLabelVisible: true, title: tag}));
+        if (t.tp) lines.push(series.createPriceLine({price: +t.tp, color: "#12d18e", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "TP"}));
+        if (t.sl) lines.push(series.createPriceLine({price: +t.sl, color: "#ff5d73", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "SL"}));
+      }
+      if (t.fillAt && snap(t.fillAt) >= first)
+        mk.push({time: snap(t.fillAt), position: buy ? "belowBar" : "aboveBar", color: buy ? "#12d18e" : "#ff5d73", shape: buy ? "arrowUp" : "arrowDown", text: (buy ? "MUA " : "BÁN ") + (+t.entry).toFixed(2)});
+      if (t.closedAt && t.fillAt && snap(t.closedAt) >= first && t.exit != null) {
+        var win = t.move != null ? t.move >= 0 : true;
+        mk.push({time: snap(t.closedAt), position: buy ? "aboveBar" : "belowBar", color: win ? "#12d18e" : "#ff5d73", shape: "circle", text: (t.move != null ? (t.move >= 0 ? "+" : "") + (+t.move).toFixed(2) : "đóng")});
+      }
+    });
+    mk.sort(function (a, b) { return a.time - b.time; });
+    series.setMarkers(mk);
+  }
+  function loadTrades() {
+    if (!DB) return;
+    fetch(DB + "/" + NODE + "/trades.json", {cache: "no-store"}).then(function (r) { return r.json(); })
+      .then(function (d) { trades = Array.isArray(d) ? d : d ? Object.keys(d).map(function (k) { return d[k]; }) : []; draw(); }).catch(function () {});
+  }
+
+  document.getElementById("tf").addEventListener("click", function (e) {
+    var b = e.target.closest(".chip"); if (!b) return;
+    document.querySelectorAll("#tf .chip").forEach(function (x) { x.classList.toggle("on", x === b); });
+    iv = b.dataset.i; load();
+  });
+  load(); loadTrades();
+  setInterval(tick, 3000);
+  setInterval(loadTrades, 15000);
+})();
+</script>
+</body>
+</html>
